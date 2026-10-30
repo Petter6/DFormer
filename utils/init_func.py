@@ -49,10 +49,10 @@ def group_weight(weight_group, module, norm_layer, lr):
                 group_no_decay.append(m.weight)
             if m.bias is not None:
                 group_no_decay.append(m.bias)
-        elif isinstance(m, nn.Parameter):
-            group_decay.append(m)
+        else:
+            group_no_decay.extend(m.parameters(recurse=False))
 
-    # assert len(list(module.parameters())) >= len(group_decay) + len(group_no_decay)
+    assert len(list(module.parameters())) == len(group_decay) + len(group_no_decay)
     print(
         "Weight Decay:",
         len(group_decay),

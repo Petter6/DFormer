@@ -90,7 +90,8 @@ def get_path(
             item_name.replace("rgb", "semantic").replace("image", "gt_labelIds") + _gt_format,
         )
     else:
-        item_name = item_name.split("/")[1].split(".jpg")[0]
+        # dit is een fix voor png bestanden
+        item_name = item_name.split()[0].split("/")[1]
         rgb_path = os.path.join(
             _rgb_path,
             item_name.replace(".jpg", "").replace(".png", "") + _rgb_format,
@@ -153,7 +154,7 @@ class RGBXDataset(data.Dataset):
             self.x_modal,
             item_name,
         )
-        if self.dataset_name == "SUNRGBD" and self.backbone.startswith("DFormerv2"):
+        if (self.dataset_name == "SUNRGBD" and self.backbone.startswith("DFormerv2")) or self.dataset_name == "DeStijl":
             rgb_mode = "RGB"  # some checkpoints are run by BGR and some are on RGB, need to select
         else:
             rgb_mode = "BGR"

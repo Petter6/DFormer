@@ -519,6 +519,15 @@ with Engine(custom_parser=parser) as engine:
             logger.info(f"Epoch {epoch} validation result: mIoU {miou}, best mIoU {best_miou}")
             eval_timer.stop()
 
+            if (engine.distributed and engine.local_rank == 0) or not engine.distributed:
+                with torch.no_grad():
+                    geo = torch.stack([p.detach().flatten().cpu()
+                                    for n, p in model.named_parameters() if "Geo.weight" in n])
+                w_pos, w_depth = geo.mean(dim=0).tolist()
+                logger.info(f"Epoch {epoch} Geo weights: mean w_pos={w_pos:.4f}, mean w_depth={w_depth:.4f}")
+                tb.add_scalar("geo/w_pos", w_pos, epoch)
+                tb.add_scalar("geo/w_depth", w_depth, epoch)
+
         eval_count = 0
         for i in range(engine.state.epoch + 1, config.nepochs + 1):
             if is_eval(i, config):

@@ -117,7 +117,7 @@ class GeoPriorGen(nn.Module):
         super().__init__()
         angle = 1.0 / (10000 ** torch.linspace(0, 1, embed_dim // num_heads // 2))
         angle = angle.unsqueeze(-1).repeat(1, 2).flatten()
-        self.weight = nn.Parameter(torch.ones(2, 1, 1, 1), requires_grad=True)
+        self.weight = nn.Parameter(torch.zeros(2, 1, 1, 1), requires_grad=False)
         decay = torch.log(
             1 - 2 ** (-initial_value - heads_range * torch.arange(num_heads, dtype=torch.float) / num_heads)
         )
@@ -589,6 +589,20 @@ class dformerv2(nn.Module):
             self.apply(_init_weights)
             # logger = get_root_logger()
             _state_dict = torch.load(pretrained)
+
+            # allafine 
+            sd = torch.load(pretrained, map_location='cpu')
+            sd = sd.get('model', sd)
+            sd = sd.get('state_dict', sd)
+
+            for k, v in sd.items():
+                if "Geo.weight" in k:
+                    print(k, v.flatten().tolist())
+
+            import sys 
+            sys.exit(1)
+
+
             if "model" in _state_dict.keys():
                 _state_dict = _state_dict["model"]
             if "state_dict" in _state_dict.keys():
