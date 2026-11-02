@@ -4,6 +4,8 @@ import numpy as np
 from torch.utils import data
 import random
 
+from torch.utils.data import Subset
+
 # from config import config
 # from train import config
 from utils.transforms import (
@@ -41,31 +43,40 @@ class TrainPre(object):
         self.sign = sign
 
     def __call__(self, rgb, gt, modal_x):
-        rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
-        if self.config.train_scale_array is not None:
-            rgb, gt, modal_x, scale = random_scale(rgb, gt, modal_x, self.config.train_scale_array)
-
-        rgb = normalize(rgb, self.norm_mean, self.norm_std)
-        if self.sign:
-            modal_x = normalize(modal_x, [0.48, 0.48, 0.48], [0.28, 0.28, 0.28])  # [0.5,0.5,0.5]
-        else:
+        if not self.config.augmentaties:
+            rgb = normalize(rgb, self.norm_mean, self.norm_std)
             modal_x = normalize(modal_x, self.norm_mean, self.norm_std)
+            return rgb.transpose(2, 0, 1), gt, modal_x.transpose(2, 0, 1)
+        else:
+            rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
+            if self.config.train_scale_array is not None:
+                rgb, gt, modal_x, scale = random_scale(
+                    rgb, gt, modal_x, self.config.train_scale_array
+                )
 
-        # return rgb.transpose(2, 0, 1), gt, modal_x.transpose(2, 0, 1)
+            rgb = normalize(rgb, self.norm_mean, self.norm_std)
+            if self.sign:
+                modal_x = normalize(
+                    modal_x, [0.48, 0.48, 0.48], [0.28, 0.28, 0.28]
+                )  # [0.5,0.5,0.5]
+            else:
+                modal_x = normalize(modal_x, self.norm_mean, self.norm_std)
 
-        crop_size = (self.config.image_height, self.config.image_width)
-        crop_pos = generate_random_crop_pos(rgb.shape[:2], crop_size)
+            # return rgb.transpose(2, 0, 1), gt, modal_x.transpose(2, 0, 1)
 
-        p_rgb, _ = random_crop_pad_to_shape(rgb, crop_pos, crop_size, 0)
-        p_gt, _ = random_crop_pad_to_shape(gt, crop_pos, crop_size, 255)
-        p_modal_x, _ = random_crop_pad_to_shape(modal_x, crop_pos, crop_size, 0)
+            crop_size = (self.config.image_height, self.config.image_width)
+            crop_pos = generate_random_crop_pos(rgb.shape[:2], crop_size)
 
-        p_rgb = p_rgb.transpose(2, 0, 1)
-        p_modal_x = p_modal_x.transpose(2, 0, 1)
-        # p_rgb = p_rgb
-        # p_modal_x = p_modal_x
+            p_rgb, _ = random_crop_pad_to_shape(rgb, crop_pos, crop_size, 0)
+            p_gt, _ = random_crop_pad_to_shape(gt, crop_pos, crop_size, 255)
+            p_modal_x, _ = random_crop_pad_to_shape(modal_x, crop_pos, crop_size, 0)
 
-        return p_rgb, p_gt, p_modal_x
+            p_rgb = p_rgb.transpose(2, 0, 1)
+            p_modal_x = p_modal_x.transpose(2, 0, 1)
+            # p_rgb = p_rgb
+            # p_modal_x = p_modal_x
+
+            return p_rgb, p_gt, p_modal_x
 
 
 def seed_worker(worker_id):
@@ -155,7 +166,9 @@ def get_train_loader(engine, dataset, config):
         "dataset_name": config.dataset_name,
         "backbone": config.backbone,
     }
-    train_preprocess = TrainPre(config.norm_mean, config.norm_std, config.x_is_single_channel, config)
+    train_preprocess = TrainPre(
+        config.norm_mean, config.norm_std, config.x_is_single_channel, config
+    )
 
     train_dataset = dataset(
         data_setting,
@@ -163,6 +176,12 @@ def get_train_loader(engine, dataset, config):
         train_preprocess,
         config.batch_size * config.niters_per_epoch,
     )
+
+    # utils/dataloader/dataloader.py, in plaats van de Subset-regel
+    idx = torch.randperm(len(train_dataset._file_names))[
+        : config.num_train_imgs
+    ].tolist()
+    train_dataset._file_names = [train_dataset._file_names[i] for i in idx]
 
     train_sampler = None
     is_shuffle = True
@@ -205,7 +224,9 @@ def get_val_loader(engine, dataset, config, val_batch_size=1):
         "dataset_name": config.dataset_name,
         "backbone": config.backbone,
     }
-    val_preprocess = ValPre(config.norm_mean, config.norm_std, config.x_is_single_channel, config)
+    val_preprocess = ValPre(
+        config.norm_mean, config.norm_std, config.x_is_single_channel, config
+    )
 
     val_dataset = dataset(data_setting, "val", val_preprocess)
 

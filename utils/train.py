@@ -21,6 +21,8 @@ from utils.engine.logger import get_logger
 from utils.init_func import configure_optimizers, group_weight
 from utils.lr_policy import WarmUpPolyLR
 from utils.pyt_utils import all_reduce_tensor
+import uuid
+import csv
 
 # from eval import evaluate_mid
 
@@ -45,8 +47,14 @@ parser.add_argument("--val_amp", default=True, action=argparse.BooleanOptionalAc
 parser.add_argument(
     "--pad_SUNRGBD", default=False, action=argparse.BooleanOptionalAction
 )
-parser.add_argument("--use_seed", default=True, action=argparse.BooleanOptionalAction)
+parser.add_argument("--use_seed", default=False, action=argparse.BooleanOptionalAction)
+parser.add_argument("--seed", default=0, type=int)
 parser.add_argument("--local-rank", default=0)
+parser.add_argument("--mask", default=True, action=argparse.BooleanOptionalAction)
+parser.add_argument(
+    "--augmentaties", default=True, action=argparse.BooleanOptionalAction
+)
+parser.add_argument("--ds_size", default=1, type=int)
 # parser.add_argument('--save_path', '-p', default=None)
 
 # os.environ['MASTER_PORT'] = '169710'
@@ -56,9 +64,21 @@ import torch._dynamo
 torch._dynamo.config.suppress_errors = True
 # torch._dynamo.config.automatic_dynamic_shapes = False
 
+run_id = uuid.uuid4().hex[:8]
+
+uit_csv = "uit.csv"
+veldnamen = ["run_id", "epoch", "mask", "augmentaties", "ds_size", "macc", "miou"]
+
+bestaat = os.path.exists(uit_csv)
+
+with open(uit_csv, "a+", newline="") as f:
+    writer = csv.DictWriter(f=f, fieldnames=veldnamen)
+    if not bestaat:
+        writer.writeheader()
+
 
 def is_eval(epoch, config):
-    return epoch > int(config.checkpoint_start_epoch) or epoch == 1 or epoch % 10 == 0
+    return epoch > int(config.checkpoint_start_epoch) or epoch == 1 or epoch % 25 == 0
 
 
 class gpu_timer:
@@ -129,6 +149,14 @@ with Engine(custom_parser=parser) as engine:
     ):
         raise ValueError("DFormerv2 is not recommended without pad_SUNRGBD")
     config.pad = args.pad_SUNRGBD
+
+    # hier de config updaten (mask, augmentaties, ds_size)
+    config.mask = args.mask
+    config.augmentaties = args.augmentaties
+    config.num_train_imgs = args.ds_size
+    config.seed = args.seed
+    config.niters_per_epoch = config.num_train_imgs
+
     if args.use_seed:
         set_seed(config.seed)
         logger.info(f"set seed {config.seed}")
@@ -527,6 +555,20 @@ with Engine(custom_parser=parser) as engine:
                     # print('miou',miou)
                 # print('acc, macc, f1, mf1, ious, miou',acc, macc, f1, mf1, ious, miou)
                 # print('miou',miou)
+                res = {
+                    "run_id": run_id,
+                    "epoch": epoch,
+                    "mask": config.mask,
+                    "augmentaties": config.augmentaties,
+                    "ds_size": config.num_train_imgs,
+                    "macc": macc,
+                    "miou": miou,
+                }
+
+                with open(uit_csv, "a") as f:
+                    writer = csv.DictWriter(f, fieldnames=veldnamen)
+                    writer.writerow(res)
+
                 if miou > best_miou:
                     best_miou = miou
                     engine.save_and_link_checkpoint(
@@ -536,6 +578,13 @@ with Engine(custom_parser=parser) as engine:
                         infor="_miou_" + str(miou),
                         metric=miou,
                     )
+                    stoploss = 0
+                else:
+                    stoploss += 1
+
+                    if stoploss == 8:
+                        break
+
                 print("miou", miou, "best", best_miou)
             logger.info(
                 f"Epoch {epoch} validation result: mIoU {miou}, best mIoU {best_miou}"

@@ -46,12 +46,19 @@ def build_loss(cfg):
 def build_segmentor(cfg, train_cfg=None, test_cfg=None):
     """Build segmentor."""
     if train_cfg is not None or test_cfg is not None:
-        warnings.warn("train_cfg and test_cfg is deprecated, please specify them in model", UserWarning)
-    assert cfg.get("train_cfg") is None or train_cfg is None, (
-        "train_cfg specified in both outer field and model field "
+        warnings.warn(
+            "train_cfg and test_cfg is deprecated, please specify them in model",
+            UserWarning,
+        )
+    assert (
+        cfg.get("train_cfg") is None or train_cfg is None
+    ), "train_cfg specified in both outer field and model field "
+    assert (
+        cfg.get("test_cfg") is None or test_cfg is None
+    ), "test_cfg specified in both outer field and model field "
+    return SEGMENTORS.build(
+        cfg, default_args=dict(train_cfg=train_cfg, test_cfg=test_cfg)
     )
-    assert cfg.get("test_cfg") is None or test_cfg is None, "test_cfg specified in both outer field and model field "
-    return SEGMENTORS.build(cfg, default_args=dict(train_cfg=train_cfg, test_cfg=test_cfg))
 
 
 logger = get_logger()
@@ -121,7 +128,14 @@ class EncoderDecoder(nn.Module):
             norm_cfg = dict(type="BN", requires_grad=True)
 
         backbone_kwargs = dict(norm_cfg=norm_cfg)
-        if cfg.backbone in ("DFormer++-T", "DFormer++-S", "DFormer++-B", "DFormerPP-T", "DFormerPP-S", "DFormerPP-B"):
+        if cfg.backbone in (
+            "DFormer++-T",
+            "DFormer++-S",
+            "DFormer++-B",
+            "DFormerPP-T",
+            "DFormerPP-S",
+            "DFormerPP-B",
+        ):
             import numpy as np
 
             # Match the journal finetuning setup for DFormer++.
@@ -132,7 +146,9 @@ class EncoderDecoder(nn.Module):
             )
 
         drop_path_rate = cfg.drop_path_rate if cfg.drop_path_rate is not None else 0.1
-        self.backbone = backbone(drop_path_rate=drop_path_rate, **backbone_kwargs)
+        self.backbone = backbone(
+            drop_path_rate=drop_path_rate, cfg=cfg, **backbone_kwargs
+        )
 
         self.aux_head = None
 
@@ -166,31 +182,44 @@ class EncoderDecoder(nn.Module):
                 self.aux_index = 2
                 self.aux_rate = cfg.aux_rate
                 print("aux rate is set to", str(self.aux_rate))
-                self.aux_head = FCNHead(self.channels[2], cfg.num_classes, norm_layer=norm_layer)
+                self.aux_head = FCNHead(
+                    self.channels[2], cfg.num_classes, norm_layer=norm_layer
+                )
 
         elif cfg.decoder == "UPernet":
             logger.info("Using Upernet Decoder")
             from .decoders.UPernet import UPerHead
 
             self.decode_head = UPerHead(
-                in_channels=self.channels, num_classes=cfg.num_classes, norm_layer=norm_layer, channels=512
+                in_channels=self.channels,
+                num_classes=cfg.num_classes,
+                norm_layer=norm_layer,
+                channels=512,
             )
             from .decoders.fcnhead import FCNHead
 
             self.aux_index = 2
             self.aux_rate = 0.4
-            self.aux_head = FCNHead(self.channels[2], cfg.num_classes, norm_layer=norm_layer)
+            self.aux_head = FCNHead(
+                self.channels[2], cfg.num_classes, norm_layer=norm_layer
+            )
 
         elif cfg.decoder == "deeplabv3+":
             logger.info("Using Decoder: DeepLabV3+")
             from .decoders.deeplabv3plus import DeepLabV3Plus as Head
 
-            self.decode_head = Head(in_channels=self.channels, num_classes=cfg.num_classes, norm_layer=norm_layer)
+            self.decode_head = Head(
+                in_channels=self.channels,
+                num_classes=cfg.num_classes,
+                norm_layer=norm_layer,
+            )
             from .decoders.fcnhead import FCNHead
 
             self.aux_index = 2
             self.aux_rate = 0.4
-            self.aux_head = FCNHead(self.channels[2], cfg.num_classes, norm_layer=norm_layer)
+            self.aux_head = FCNHead(
+                self.channels[2], cfg.num_classes, norm_layer=norm_layer
+            )
         elif cfg.decoder == "nl":
             logger.info("Using Decoder: nl+")
             from .decoders.nl_head import NLHead as Head
@@ -206,14 +235,19 @@ class EncoderDecoder(nn.Module):
 
             self.aux_index = 2
             self.aux_rate = 0.4
-            self.aux_head = FCNHead(self.channels[2], cfg.num_classes, norm_layer=norm_layer)
+            self.aux_head = FCNHead(
+                self.channels[2], cfg.num_classes, norm_layer=norm_layer
+            )
 
         else:
             logger.info("No decoder(FCN-32s)")
             from .decoders.fcnhead import FCNHead
 
             self.decode_head = FCNHead(
-                in_channels=self.channels[-1], kernel_size=3, num_classes=cfg.num_classes, norm_layer=norm_layer
+                in_channels=self.channels[-1],
+                kernel_size=3,
+                num_classes=cfg.num_classes,
+                norm_layer=norm_layer,
             )
 
         self.criterion = criterion
@@ -254,10 +288,14 @@ class EncoderDecoder(nn.Module):
         if len(x) == 2:  # if output is (rgb, depth) only use rgb features
             x = x[0]
         out = self.decode_head.forward(x)
-        out = F.interpolate(out, size=orisize[-2:], mode="bilinear", align_corners=False)
+        out = F.interpolate(
+            out, size=orisize[-2:], mode="bilinear", align_corners=False
+        )
         if self.aux_head:
             aux_fm = self.aux_head(x[self.aux_index])
-            aux_fm = F.interpolate(aux_fm, size=orisize[2:], mode="bilinear", align_corners=False)
+            aux_fm = F.interpolate(
+                aux_fm, size=orisize[2:], mode="bilinear", align_corners=False
+            )
             return out, aux_fm
         return out
 
@@ -268,10 +306,15 @@ class EncoderDecoder(nn.Module):
         else:
             out = self.encode_decode(rgb, modal_x)
         if label is not None:
-            loss = self.criterion(out, label.long())[label.long() != self.cfg.background].mean()
+            loss = self.criterion(out, label.long())[
+                label.long() != self.cfg.background
+            ].mean()
             if self.aux_head:
                 loss += (
-                    self.aux_rate * self.criterion(aux_fm, label.long())[label.long() != self.cfg.background].mean()
+                    self.aux_rate
+                    * self.criterion(aux_fm, label.long())[
+                        label.long() != self.cfg.background
+                    ].mean()
                 )
             return loss
         return out

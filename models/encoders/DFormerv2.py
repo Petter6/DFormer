@@ -113,12 +113,12 @@ def angle_transform(x, sin, cos):
 
 
 class GeoPriorGen(nn.Module):
-    def __init__(self, embed_dim, num_heads, initial_value, heads_range):
+    def __init__(self, embed_dim, num_heads, initial_value, heads_range, cfg):
         super().__init__()
         angle = 1.0 / (10000 ** torch.linspace(0, 1, embed_dim // num_heads // 2))
         angle = angle.unsqueeze(-1).repeat(1, 2).flatten()
         # Hier de grad aanpassen voor prior / vs niet.
-        self.weight = nn.Parameter(torch.zeros(2, 1, 1, 1), requires_grad=False)
+        self.weight = nn.Parameter(torch.zeros(2, 1, 1, 1), requires_grad=cfg.mask)
         decay = torch.log(
             1
             - 2
@@ -410,6 +410,7 @@ class RGBD_Block(nn.Module):
         layer_init_values=1e-5,
         init_value=2,
         heads_range=4,
+        cfg=None,
     ):
         super().__init__()
         self.layerscale = layerscale
@@ -425,7 +426,7 @@ class RGBD_Block(nn.Module):
         self.ffn = FeedForwardNetwork(embed_dim, ffn_dim)
         self.cnn_pos_encode = DWConv2d(embed_dim, 3, 1, 1)
         # the function to generate the geometry prior for the current block
-        self.Geo = GeoPriorGen(embed_dim, num_heads, init_value, heads_range)
+        self.Geo = GeoPriorGen(embed_dim, num_heads, init_value, heads_range, cfg=cfg)
 
         if layerscale:
             self.gamma_1 = nn.Parameter(
@@ -475,6 +476,7 @@ class BasicLayer(nn.Module):
         use_checkpoint=False,
         layerscale=False,
         layer_init_values=1e-5,
+        cfg=None,
     ):
         super().__init__()
         self.embed_dim = embed_dim
@@ -495,6 +497,7 @@ class BasicLayer(nn.Module):
                     layer_init_values,
                     init_value=init_value,
                     heads_range=heads_range,
+                    cfg=cfg,
                 )
                 for i in range(depth)
             ]
@@ -543,6 +546,7 @@ class dformerv2(nn.Module):
         layerscales=[False, False, False, False],
         layer_init_values=1e-6,
         norm_eval=True,
+        cfg=None,
     ):
         super().__init__()
         self.out_indices = out_indices
@@ -584,6 +588,7 @@ class dformerv2(nn.Module):
                 use_checkpoint=use_checkpoint,
                 layerscale=layerscales[i_layer],
                 layer_init_values=layer_init_values,
+                cfg=cfg,
             )
             self.layers.append(layer)
 
@@ -698,12 +703,13 @@ class dformerv2(nn.Module):
                     m.eval()
 
 
-def DFormerv2_S(pretrained=False, **kwargs):
+def DFormerv2_S(pretrained=False, cfg=None, **kwargs):
     model = dformerv2(
         embed_dims=[64, 128, 256, 512],
         depths=[3, 4, 18, 4],
         num_heads=[4, 4, 8, 16],
         heads_ranges=[4, 4, 6, 6],
+        cfg=cfg,
         **kwargs,
     )
     return model
