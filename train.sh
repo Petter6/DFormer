@@ -25,7 +25,7 @@ PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
     --no-amp \
     --val_amp \
     --pad_SUNRGBD \
-    --no-use_seed
+    --use_seed
 
 # Usage:
 #   bash train.sh local_configs.NYUDepthv2.DFormerPP_B

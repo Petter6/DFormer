@@ -42,7 +42,9 @@ parser.add_argument("--syncbn", default=True, action=argparse.BooleanOptionalAct
 parser.add_argument("--mst", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--amp", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--val_amp", default=True, action=argparse.BooleanOptionalAction)
-parser.add_argument("--pad_SUNRGBD", default=False, action=argparse.BooleanOptionalAction)
+parser.add_argument(
+    "--pad_SUNRGBD", default=False, action=argparse.BooleanOptionalAction
+)
 parser.add_argument("--use_seed", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--local-rank", default=0)
 # parser.add_argument('--save_path', '-p', default=None)
@@ -98,7 +100,9 @@ def set_seed(seed):
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.enabled = True  # train speed is slower after enabling this opts.
+    torch.backends.cudnn.enabled = (
+        True  # train speed is slower after enabling this opts.
+    )
 
     # https://pytorch.org/docs/stable/generated/torch.use_deterministic_algorithms.html
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":16:8"
@@ -118,7 +122,11 @@ with Engine(custom_parser=parser) as engine:
         logger.warning("pad_SUNRGBD is only used for SUNRGBD dataset")
     if (args.pad_SUNRGBD) and (not config.backbone.startswith("DFormerv2")):
         raise ValueError("DFormerv1 is not recommended with pad_SUNRGBD")
-    if (not args.pad_SUNRGBD) and config.backbone.startswith("DFormerv2") and config.dataset_name == "SUNRGBD":
+    if (
+        (not args.pad_SUNRGBD)
+        and config.backbone.startswith("DFormerv2")
+        and config.dataset_name == "SUNRGBD"
+    ):
         raise ValueError("DFormerv2 is not recommended without pad_SUNRGBD")
     config.pad = args.pad_SUNRGBD
     if args.use_seed:
@@ -131,7 +139,9 @@ with Engine(custom_parser=parser) as engine:
 
     # assert not (args.compile and args.syncbn), "syncbn is not supported in compile mode"
     if not args.compile and args.compile_mode != "default":
-        logger.warning("compile_mode is only valid when compile is enabled, ignoring compile_mode")
+        logger.warning(
+            "compile_mode is only valid when compile is enabled, ignoring compile_mode"
+        )
 
     train_loader, train_sampler = get_train_loader(engine, RGBXDataset, config)
 
@@ -161,12 +171,18 @@ with Engine(custom_parser=parser) as engine:
         engine,
         RGBXDataset,
         config,
-        val_batch_size=int(config.batch_size * val_dl_factor) if config.dataset_name != "SUNRGBD" else int(args.gpus),
+        val_batch_size=(
+            int(config.batch_size * val_dl_factor)
+            if config.dataset_name != "SUNRGBD"
+            else int(args.gpus)
+        ),
     )
     logger.info(f"val dataset len:{len(val_loader) * int(args.gpus)}")
 
     if (engine.distributed and (engine.local_rank == 0)) or (not engine.distributed):
-        tb_dir = config.tb_dir + "/{}".format(time.strftime("%b%d_%d-%H-%M", time.localtime()))
+        tb_dir = config.tb_dir + "/{}".format(
+            time.strftime("%b%d_%d-%H-%M", time.localtime())
+        )
         generate_tb_dir = config.tb_dir + "/tb"
         tb = SummaryWriter(log_dir=tb_dir)
         engine.link_tb(tb_dir, generate_tb_dir)
@@ -275,7 +291,9 @@ with Engine(custom_parser=parser) as engine:
     #                                 all_dev, config,args.verbose, args.save_path,args.show_image)
     uncompiled_model = model
     if args.compile:
-        compiled_model = torch.compile(model, backend="inductor", mode=args.compile_mode)
+        compiled_model = torch.compile(
+            model, backend="inductor", mode=args.compile_mode
+        )
     else:
         compiled_model = model
     miou, best_miou = 0.0, 0.0
@@ -333,7 +351,9 @@ with Engine(custom_parser=parser) as engine:
                 scaler.step(optimizer)
                 # Updates the scale for next iteration.
                 scaler.update()
-                optimizer.zero_grad(set_to_none=True)  # TODO: check if set_to_none=True impact the performance
+                optimizer.zero_grad(
+                    set_to_none=True
+                )  # TODO: check if set_to_none=True impact the performance
             else:
                 optimizer.zero_grad()
                 loss.backward()
@@ -357,7 +377,8 @@ with Engine(custom_parser=parser) as engine:
                     "Epoch {}/{}".format(epoch, config.nepochs)
                     + " Iter {}/{}:".format(idx + 1, config.niters_per_epoch)
                     + " lr=%.4e" % lr
-                    + " loss=%.4f total_loss=%.4f" % (reduce_loss.item(), (sum_loss / (idx + 1)))
+                    + " loss=%.4f total_loss=%.4f"
+                    % (reduce_loss.item(), (sum_loss / (idx + 1)))
                 )
 
             else:
@@ -368,10 +389,10 @@ with Engine(custom_parser=parser) as engine:
                     + f"lr={lr:.4e} loss={loss:.4f} total_loss={(sum_loss / (idx + 1)):.4f}"
                 )
 
-            if ((idx + 1) % int((config.niters_per_epoch) * 0.1) == 0 or idx == 0) and (
-                (engine.distributed and (engine.local_rank == 0)) or (not engine.distributed)
-            ):
-                print(print_str)
+            # if ((idx + 1) % int((config.niters_per_epoch) * 0.1) == 0 or idx == 0) and (
+            #     (engine.distributed and (engine.local_rank == 0)) or (not engine.distributed)
+            # ):
+            #     print(print_str)
 
             del loss
             # pbar.set_description(print_str, refresh=False)
@@ -516,15 +537,26 @@ with Engine(custom_parser=parser) as engine:
                         metric=miou,
                     )
                 print("miou", miou, "best", best_miou)
-            logger.info(f"Epoch {epoch} validation result: mIoU {miou}, best mIoU {best_miou}")
+            logger.info(
+                f"Epoch {epoch} validation result: mIoU {miou}, best mIoU {best_miou}"
+            )
             eval_timer.stop()
 
-            if (engine.distributed and engine.local_rank == 0) or not engine.distributed:
+            if (
+                engine.distributed and engine.local_rank == 0
+            ) or not engine.distributed:
                 with torch.no_grad():
-                    geo = torch.stack([p.detach().flatten().cpu()
-                                    for n, p in model.named_parameters() if "Geo.weight" in n])
+                    geo = torch.stack(
+                        [
+                            p.detach().flatten().cpu()
+                            for n, p in model.named_parameters()
+                            if "Geo.weight" in n
+                        ]
+                    )
                 w_pos, w_depth = geo.mean(dim=0).tolist()
-                logger.info(f"Epoch {epoch} Geo weights: mean w_pos={w_pos:.4f}, mean w_depth={w_depth:.4f}")
+                logger.info(
+                    f"Epoch {epoch} Geo weights: mean w_pos={w_pos:.4f}, mean w_depth={w_depth:.4f}"
+                )
                 tb.add_scalar("geo/w_pos", w_pos, epoch)
                 tb.add_scalar("geo/w_depth", w_depth, epoch)
 
@@ -532,8 +564,13 @@ with Engine(custom_parser=parser) as engine:
         for i in range(engine.state.epoch + 1, config.nepochs + 1):
             if is_eval(i, config):
                 eval_count += 1
-        left_time = train_timer.mean_time * (config.nepochs - engine.state.epoch) + eval_timer.mean_time * eval_count
-        eta = (datetime.datetime.now() + datetime.timedelta(seconds=left_time)).strftime("%Y-%m-%d %H:%M:%S")
+        left_time = (
+            train_timer.mean_time * (config.nepochs - engine.state.epoch)
+            + eval_timer.mean_time * eval_count
+        )
+        eta = (
+            datetime.datetime.now() + datetime.timedelta(seconds=left_time)
+        ).strftime("%Y-%m-%d %H:%M:%S")
         logger.info(
             f"Avg train time: {train_timer.mean_time:.2f}s, avg eval time: {eval_timer.mean_time:.2f}s, left eval count: {eval_count}, ETA: {eta}"
         )

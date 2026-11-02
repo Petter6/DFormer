@@ -117,9 +117,15 @@ class GeoPriorGen(nn.Module):
         super().__init__()
         angle = 1.0 / (10000 ** torch.linspace(0, 1, embed_dim // num_heads // 2))
         angle = angle.unsqueeze(-1).repeat(1, 2).flatten()
+        # Hier de grad aanpassen voor prior / vs niet.
         self.weight = nn.Parameter(torch.zeros(2, 1, 1, 1), requires_grad=False)
         decay = torch.log(
-            1 - 2 ** (-initial_value - heads_range * torch.arange(num_heads, dtype=torch.float) / num_heads)
+            1
+            - 2
+            ** (
+                -initial_value
+                - heads_range * torch.arange(num_heads, dtype=torch.float) / num_heads
+            )
         )
         self.register_buffer("angle", angle)
         self.register_buffer("decay", decay)
@@ -176,7 +182,9 @@ class GeoPriorGen(nn.Module):
         HW_tuple: (H, W)
         H * W == l
         """
-        depth_map = F.interpolate(depth_map, size=HW_tuple, mode="bilinear", align_corners=False)
+        depth_map = F.interpolate(
+            depth_map, size=HW_tuple, mode="bilinear", align_corners=False
+        )
 
         if split_or_not:
             index = torch.arange(HW_tuple[0] * HW_tuple[1]).to(self.decay)
@@ -185,14 +193,22 @@ class GeoPriorGen(nn.Module):
             cos = torch.cos(index[:, None] * self.angle[None, :])
             cos = cos.reshape(HW_tuple[0], HW_tuple[1], -1)
 
-            mask_d_h = self.generate_1d_depth_decay(HW_tuple[0], HW_tuple[1], depth_map.transpose(-2, -1))
+            mask_d_h = self.generate_1d_depth_decay(
+                HW_tuple[0], HW_tuple[1], depth_map.transpose(-2, -1)
+            )
             mask_d_w = self.generate_1d_depth_decay(HW_tuple[1], HW_tuple[0], depth_map)
 
             mask_h = self.generate_1d_decay(HW_tuple[0])
             mask_w = self.generate_1d_decay(HW_tuple[1])
 
-            mask_h = self.weight[0] * mask_h.unsqueeze(0).unsqueeze(2) + self.weight[1] * mask_d_h
-            mask_w = self.weight[0] * mask_w.unsqueeze(0).unsqueeze(2) + self.weight[1] * mask_d_w
+            mask_h = (
+                10 * self.weight[0] * mask_h.unsqueeze(0).unsqueeze(2)
+                + 10 * self.weight[1] * mask_d_h
+            )
+            mask_w = (
+                10 * self.weight[0] * mask_w.unsqueeze(0).unsqueeze(2)
+                + 10 * self.weight[1] * mask_d_w
+            )
 
             geo_prior = ((sin, cos), (mask_h, mask_w))
 
@@ -240,8 +256,12 @@ class Decomposed_GSA(nn.Module):
         lepe = self.lepe(v)
 
         k = k * self.scaling
-        q = q.view(bsz, h, w, self.num_heads, self.key_dim).permute(0, 3, 1, 2, 4)  # (b n h w d1)
-        k = k.view(bsz, h, w, self.num_heads, self.key_dim).permute(0, 3, 1, 2, 4)  # (b n h w d1)
+        q = q.view(bsz, h, w, self.num_heads, self.key_dim).permute(
+            0, 3, 1, 2, 4
+        )  # (b n h w d1)
+        k = k.view(bsz, h, w, self.num_heads, self.key_dim).permute(
+            0, 3, 1, 2, 4
+        )  # (b n h w d1)
         qr = angle_transform(q, sin, cos)
         kr = angle_transform(k, sin, cos)
 
@@ -408,8 +428,12 @@ class RGBD_Block(nn.Module):
         self.Geo = GeoPriorGen(embed_dim, num_heads, init_value, heads_range)
 
         if layerscale:
-            self.gamma_1 = nn.Parameter(layer_init_values * torch.ones(1, 1, 1, embed_dim), requires_grad=True)
-            self.gamma_2 = nn.Parameter(layer_init_values * torch.ones(1, 1, 1, embed_dim), requires_grad=True)
+            self.gamma_1 = nn.Parameter(
+                layer_init_values * torch.ones(1, 1, 1, embed_dim), requires_grad=True
+            )
+            self.gamma_2 = nn.Parameter(
+                layer_init_values * torch.ones(1, 1, 1, embed_dim), requires_grad=True
+            )
 
     def forward(self, x: torch.Tensor, x_e: torch.Tensor, split_or_not=False):
         x = x + self.cnn_pos_encode(x)
@@ -417,10 +441,15 @@ class RGBD_Block(nn.Module):
 
         geo_prior = self.Geo((h, w), x_e, split_or_not=split_or_not)
         if self.layerscale:
-            x = x + self.drop_path(self.gamma_1 * self.Attention(self.layer_norm1(x), geo_prior, split_or_not))
+            x = x + self.drop_path(
+                self.gamma_1
+                * self.Attention(self.layer_norm1(x), geo_prior, split_or_not)
+            )
             x = x + self.drop_path(self.gamma_2 * self.ffn(self.layer_norm2(x)))
         else:
-            x = x + self.drop_path(self.Attention(self.layer_norm1(x), geo_prior, split_or_not))
+            x = x + self.drop_path(
+                self.Attention(self.layer_norm1(x), geo_prior, split_or_not)
+            )
             x = x + self.drop_path(self.ffn(self.layer_norm2(x)))
         return x
 
@@ -473,7 +502,9 @@ class BasicLayer(nn.Module):
 
         # patch merging layer
         if downsample is not None:
-            self.downsample = downsample(dim=embed_dim, out_dim=out_dim, norm_layer=norm_layer)
+            self.downsample = downsample(
+                dim=embed_dim, out_dim=out_dim, norm_layer=norm_layer
+            )
         else:
             self.downsample = None
 
@@ -481,7 +512,9 @@ class BasicLayer(nn.Module):
         b, h, w, d = x.size()
         for blk in self.blocks:
             if self.use_checkpoint:
-                x = checkpoint.checkpoint(blk, x=x, x_e=x_e, split_or_not=self.split_or_not)
+                x = checkpoint.checkpoint(
+                    blk, x=x, x_e=x_e, split_or_not=self.split_or_not
+                )
             else:
                 x = blk(x, x_e, split_or_not=self.split_or_not)
         if self.downsample is not None:
@@ -522,7 +555,9 @@ class dformerv2(nn.Module):
 
         # patch embedding
         self.patch_embed = PatchEmbed(
-            in_chans=3, embed_dim=embed_dims[0], norm_layer=norm_layer if self.patch_norm else None
+            in_chans=3,
+            embed_dim=embed_dims[0],
+            norm_layer=norm_layer if self.patch_norm else None,
         )
 
         # drop path rate
@@ -534,7 +569,9 @@ class dformerv2(nn.Module):
         for i_layer in range(self.num_layers):
             layer = BasicLayer(
                 embed_dim=embed_dims[i_layer],
-                out_dim=embed_dims[i_layer + 1] if (i_layer < self.num_layers - 1) else None,
+                out_dim=(
+                    embed_dims[i_layer + 1] if (i_layer < self.num_layers - 1) else None
+                ),
                 depth=depths[i_layer],
                 num_heads=num_heads[i_layer],
                 init_value=init_values[i_layer],
@@ -590,18 +627,18 @@ class dformerv2(nn.Module):
             # logger = get_root_logger()
             _state_dict = torch.load(pretrained)
 
-            # allafine 
-            sd = torch.load(pretrained, map_location='cpu')
-            sd = sd.get('model', sd)
-            sd = sd.get('state_dict', sd)
+            # allafine
+            sd = torch.load(pretrained, map_location="cpu")
+            sd = sd.get("model", sd)
+            sd = sd.get("state_dict", sd)
 
             for k, v in sd.items():
                 if "Geo.weight" in k:
                     print(k, v.flatten().tolist())
 
-            import sys 
-            sys.exit(1)
+            import sys
 
+            sys.exit(1)
 
             if "model" in _state_dict.keys():
                 _state_dict = _state_dict["model"]

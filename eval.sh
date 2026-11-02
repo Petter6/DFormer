@@ -27,7 +27,8 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --compile_mode="reduce-overhead" \
     --amp \
     --pad_SUNRGBD \
-    --continue_fpath="checkpoints/trained/DFormerv2_Small_NYU.pth"
+    --continue_fpath="checkpoints/trained/DFormerv2_Small_NYU.pth" \
+    --use_seed
 
 # choose the dataset and DFormer for evaluating
 
