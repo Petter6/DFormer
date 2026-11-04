@@ -9,9 +9,9 @@ export CUDA_VISIBLE_DEVICES="0"
 export TORCHDYNAMO_VERBOSE=1
 
 for augmentatie in --augmentatie; do
-    for seed in $(seq 0 4); do
-        for ds_size in 100 50 10 5 1; do
-            for mask in --mask --no-mask; do
+    for ds_size in 5 50 10 5 1; do
+        for seed in $(seq 0 4); do
+            for mask in --no-mask --mask; do
             echo ">>> mask=$mask seed=$seed ds_size=$ds_size"
             PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
             torchrun \
@@ -24,7 +24,6 @@ for augmentatie in --augmentatie; do
                 --config=$CONFIG --gpus=$GPUS \
                 --no-sliding \
                 --no-compile \
-                --syncbn \
                 --no-mst \
                 --compile_mode="default" \
                 --no-amp \

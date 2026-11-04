@@ -23,6 +23,8 @@ from utils.lr_policy import WarmUpPolyLR
 from utils.pyt_utils import all_reduce_tensor
 import uuid
 import csv
+from torch.nn.modules.batchnorm import _BatchNorm
+from models.encoders.DFormerv2 import GeoPriorGen
 
 # from eval import evaluate_mid
 
@@ -40,7 +42,7 @@ parser.add_argument("--continue_fpath")
 parser.add_argument("--sliding", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--compile", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--compile_mode", default="default")
-parser.add_argument("--syncbn", default=True, action=argparse.BooleanOptionalAction)
+parser.add_argument("--syncbn", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--mst", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--amp", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--val_amp", default=True, action=argparse.BooleanOptionalAction)
@@ -155,7 +157,6 @@ with Engine(custom_parser=parser) as engine:
     config.augmentaties = args.augmentaties
     config.num_train_imgs = args.ds_size
     config.seed = args.seed
-    config.niters_per_epoch = config.num_train_imgs
 
     if args.use_seed:
         set_seed(config.seed)
@@ -172,6 +173,7 @@ with Engine(custom_parser=parser) as engine:
         )
 
     train_loader, train_sampler = get_train_loader(engine, RGBXDataset, config)
+    config.niters_per_epoch = args.ds_size // config.batch_size
 
     if args.gpus == 2:
         if args.mst and args.compile and args.compile_mode == "reduce-overhead":
@@ -330,9 +332,39 @@ with Engine(custom_parser=parser) as engine:
 
     if args.amp:
         scaler = torch.cuda.amp.GradScaler()
+
+    geo_weights = {}
+
+    with open("geo_trained_weights.csv", "r") as f:
+        reader = csv.DictReader(f, delimiter=",")
+
+        for row in reader:
+            print(row["spatial_weight"])
+            geo_weights[(row["layer"], row["block"])] = (
+                float(row["spatial_weight"]),
+                float(row["depth_weight"]),
+            )
+
     for epoch in range(engine.state.epoch, config.nepochs + 1):
         model = compiled_model
         model.train()
+
+        # for m in model.modules():
+        #     print(m)
+
+        for name, m in model.named_modules():
+            if isinstance(m, GeoPriorGen):
+                layer = name.split(".")[2]
+                block = name.split(".")[4]
+
+                spatial_weight, depth_weight = geo_weights[(layer, block)]
+                m.weight = nn.Parameter(
+                    torch.Tensor([spatial_weight, depth_weight]).view(2, 1, 1, 1),
+                    requires_grad=config.mask,
+                )
+
+        model.cuda()
+
         if engine.distributed:
             train_sampler.set_epoch(epoch)
         # bar_format = "{desc}[{elapsed}<{remaining},{rate_fmt}]"
@@ -494,13 +526,13 @@ with Engine(custom_parser=parser) as engine:
                         f1, mf1 = metric.compute_f1()
                         if miou > best_miou:
                             best_miou = miou
-                            engine.save_and_link_checkpoint(
-                                config.log_dir,
-                                config.log_dir,
-                                config.log_dir_link,
-                                infor="_miou_" + str(miou),
-                                metric=miou,
-                            )
+                            # engine.save_and_link_checkpoint(
+                            #     config.log_dir,
+                            #     config.log_dir,
+                            #     config.log_dir_link,
+                            #     infor="_miou_" + str(miou),
+                            #     metric=miou,
+                            # )
                         print("miou", miou, "best", best_miou)
             elif not engine.distributed:
                 with torch.no_grad():
@@ -571,18 +603,18 @@ with Engine(custom_parser=parser) as engine:
 
                 if miou > best_miou:
                     best_miou = miou
-                    engine.save_and_link_checkpoint(
-                        config.log_dir,
-                        config.log_dir,
-                        config.log_dir_link,
-                        infor="_miou_" + str(miou),
-                        metric=miou,
-                    )
+                    # engine.save_and_link_checkpoint(
+                    #     config.log_dir,
+                    #     config.log_dir,
+                    #     config.log_dir_link,
+                    #     infor="_miou_" + str(miou),
+                    #     metric=miou,
+                    # )
                     stoploss = 0
                 else:
                     stoploss += 1
 
-                    if stoploss == 8:
+                    if stoploss == 100:
                         break
 
                 print("miou", miou, "best", best_miou)

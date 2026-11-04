@@ -202,12 +202,12 @@ class GeoPriorGen(nn.Module):
             mask_w = self.generate_1d_decay(HW_tuple[1])
 
             mask_h = (
-                10 * self.weight[0] * mask_h.unsqueeze(0).unsqueeze(2)
-                + 10 * self.weight[1] * mask_d_h
+                self.weight[0] * mask_h.unsqueeze(0).unsqueeze(2)
+                + self.weight[1] * mask_d_h
             )
             mask_w = (
-                10 * self.weight[0] * mask_w.unsqueeze(0).unsqueeze(2)
-                + 10 * self.weight[1] * mask_d_w
+                self.weight[0] * mask_w.unsqueeze(0).unsqueeze(2)
+                + self.weight[1] * mask_d_w
             )
 
             geo_prior = ((sin, cos), (mask_h, mask_w))
@@ -221,7 +221,7 @@ class GeoPriorGen(nn.Module):
             mask = self.generate_pos_decay(HW_tuple[0], HW_tuple[1])
 
             mask_d = self.generate_depth_decay(HW_tuple[0], HW_tuple[1], depth_map)
-            mask = self.weight[0] * mask + self.weight[1] * mask_d
+            mask = 10 * self.weight[0] * mask + self.weight[1] * mask_d * 10
 
             geo_prior = ((sin, cos), mask)
 
