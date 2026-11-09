@@ -10,7 +10,7 @@ export TORCHDYNAMO_VERBOSE=1
 
 for augmentatie in --augmentatie; do
     for seed in $(seq 0 4); do
-        for ds_size in 100 50 10 5 1; do
+        for ds_size in 1 50 10 5 1; do
             for mask in --mask --no-mask; do
             echo ">>> mask=$mask seed=$seed ds_size=$ds_size"
             PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
