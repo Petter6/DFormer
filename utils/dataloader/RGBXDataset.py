@@ -24,7 +24,10 @@ def get_path(
         )
         d_path = os.path.join(
             _x_path,
-            item_name.replace(".jpg", "").replace(".png", "").replace("/rgb/", "/depth/").replace("_rgb", "_newdepth")
+            item_name.replace(".jpg", "")
+            .replace(".png", "")
+            .replace("/rgb/", "/depth/")
+            .replace("_rgb", "_newdepth")
             + _x_format,
         )
         gt_path = os.path.join(
@@ -52,7 +55,9 @@ def get_path(
         )
         gt_path = os.path.join(
             _gt_path,
-            item_name.split(" ")[1].replace("data_2d_semantics", "data_2d_semantics_trainID"),
+            item_name.split(" ")[1].replace(
+                "data_2d_semantics", "data_2d_semantics_trainID"
+            ),
             # .replace("/train", ""),
         )
     elif dataset_name == "Scannet":
@@ -62,11 +67,17 @@ def get_path(
         )
         d_path = os.path.join(
             _x_path,
-            item_name.replace(".jpg", "").replace(".png", "").replace("color", "convert_depth") + _x_format,
+            item_name.replace(".jpg", "")
+            .replace(".png", "")
+            .replace("color", "convert_depth")
+            + _x_format,
         )
         gt_path = os.path.join(
             _gt_path,
-            item_name.replace(".jpg", "").replace(".png", "").replace("color", "convert_label") + _gt_format,
+            item_name.replace(".jpg", "")
+            .replace(".png", "")
+            .replace("color", "convert_label")
+            + _gt_format,
         )
     elif dataset_name == "MFNet":
         rgb_path = os.path.join(_rgb_path, item_name + _rgb_format)
@@ -79,15 +90,22 @@ def get_path(
         rgb_path = os.path.join(_rgb_path, item_name + _rgb_format)
         d_path = os.path.join(
             _x_path,
-            item_name.replace("rgb", "depth").replace("data", "frames").replace(img_name, img_id) + _x_format,
+            item_name.replace("rgb", "depth")
+            .replace("data", "frames")
+            .replace(img_name, img_id)
+            + _x_format,
         )
         e_path = os.path.join(
             _x_path,
-            item_name.replace("rgb", "events").replace("data", "frames").replace(img_name, img_id) + _x_format,
+            item_name.replace("rgb", "events")
+            .replace("data", "frames")
+            .replace(img_name, img_id)
+            + _x_format,
         )
         gt_path = os.path.join(
             _gt_path,
-            item_name.replace("rgb", "semantic").replace("image", "gt_labelIds") + _gt_format,
+            item_name.replace("rgb", "semantic").replace("image", "gt_labelIds")
+            + _gt_format,
         )
     else:
         # dit is een fix voor png bestanden
@@ -154,20 +172,26 @@ class RGBXDataset(data.Dataset):
             self.x_modal,
             item_name,
         )
-        if (self.dataset_name == "SUNRGBD" and self.backbone.startswith("DFormerv2")) or self.dataset_name == "DeStijl":
+        if (
+            self.dataset_name == "SUNRGBD" and self.backbone.startswith("DFormerv2")
+        ) or self.dataset_name.startswith("DeStijl"):
             rgb_mode = "RGB"  # some checkpoints are run by BGR and some are on RGB, need to select
         else:
             rgb_mode = "BGR"
         rgb = self._open_image(path_dict["rgb_path"], rgb_mode)
 
-        gt = self._open_image(path_dict["gt_path"], cv2.IMREAD_GRAYSCALE, dtype=np.uint8)
+        gt = self._open_image(
+            path_dict["gt_path"], cv2.IMREAD_GRAYSCALE, dtype=np.uint8
+        )
         if self._transform_gt:
             gt = self._gt_transform(gt)
 
         x = {}
         for modal in self.x_modal:
             if modal == "d":
-                x[modal] = self._open_image(path_dict[modal + "_path"], cv2.IMREAD_GRAYSCALE)
+                x[modal] = self._open_image(
+                    path_dict[modal + "_path"], cv2.IMREAD_GRAYSCALE
+                )
                 x[modal] = cv2.merge([x[modal], x[modal], x[modal]])
             else:
                 x[modal] = self._open_image(path_dict[modal + "_path"], "RGB")
@@ -206,7 +230,13 @@ class RGBXDataset(data.Dataset):
         #     gt = torch.from_numpy(np.ascontiguousarray(gt)).long()
         #     x = torch.from_numpy(np.ascontiguousarray(x)).float()
 
-        output_dict = dict(data=rgb, label=gt, modal_x=x, fn=str(path_dict["rgb_path"]), n=len(self._file_names))
+        output_dict = dict(
+            data=rgb,
+            label=gt,
+            modal_x=x,
+            fn=str(path_dict["rgb_path"]),
+            n=len(self._file_names),
+        )
 
         return output_dict
 

@@ -4,6 +4,7 @@ NODE_RANK=${NODE_RANK:-0}
 PORT=${PORT:-29158}
 MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 CONFIG=${1:-local_configs.NYUDepthv2.DFormerPP_B}
+export DATASET="DeStijl_occ"
 
 export CUDA_VISIBLE_DEVICES="0"
 export TORCHDYNAMO_VERBOSE=1

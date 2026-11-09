@@ -18,7 +18,7 @@ h_img, w_img = 224, 224
 dir_path = "./datasets"
 random_loc = True
 
-dataset_name = "DeStijl"
+dataset_name = "DeStijl_occ"
 
 path = Path(dir_path) / dataset_name
 

@@ -67,7 +67,16 @@ torch._dynamo.config.suppress_errors = True
 run_id = uuid.uuid4().hex[:8]
 
 uit_csv = "uit.csv"
-veldnamen = ["run_id", "epoch", "mask", "augmentaties", "ds_size", "macc", "miou"]
+veldnamen = [
+    "dataset",
+    "run_id",
+    "epoch",
+    "mask",
+    "augmentaties",
+    "ds_size",
+    "macc",
+    "miou",
+]
 
 bestaat = os.path.exists(uit_csv)
 
@@ -555,7 +564,10 @@ with Engine(custom_parser=parser) as engine:
                     # print('miou',miou)
                 # print('acc, macc, f1, mf1, ious, miou',acc, macc, f1, mf1, ious, miou)
                 # print('miou',miou)
+                print(config)
+                input()
                 res = {
+                    "dataset": config.dataset_name,
                     "run_id": run_id,
                     "epoch": epoch,
                     "mask": config.mask,

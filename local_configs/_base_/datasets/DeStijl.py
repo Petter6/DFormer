@@ -2,8 +2,10 @@ from .. import *
 
 # Dataset config
 """Dataset Path"""
-C.dataset_name = "DeStijl"
-C.dataset_path = osp.join(C.root_dir, "DeStijl")
+C.dataset_name = os.environ.get(
+    "DATASET", "DeStijl"
+)  # default als de variabele niet gezet is
+C.dataset_path = osp.join(C.root_dir, C.dataset_name)
 C.rgb_root_folder = osp.join(C.dataset_path, "RGB")
 C.rgb_format = ".png"
 C.gt_root_folder = osp.join(C.dataset_path, "Label")
