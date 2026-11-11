@@ -9,7 +9,6 @@ from importlib import import_module
 import numpy as np
 import torch
 import torch.nn as nn
-from tensorboardX import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel
 from val_mm import evaluate, evaluate_msf
 
@@ -216,16 +215,6 @@ with Engine(custom_parser=parser) as engine:
     )
     logger.info(f"val dataset len:{len(val_loader) * int(args.gpus)}")
 
-    if (engine.distributed and (engine.local_rank == 0)) or (not engine.distributed):
-        tb_dir = config.tb_dir + "/{}".format(
-            time.strftime("%b%d_%d-%H-%M", time.localtime())
-        )
-        generate_tb_dir = config.tb_dir + "/tb"
-        tb = SummaryWriter(log_dir=tb_dir)
-        engine.link_tb(tb_dir, generate_tb_dir)
-        pp = pprint.PrettyPrinter(indent=4)
-        logger.info("config: \n" + pp.pformat(config))
-
     logger.info("args parsed:")
     for k in args.__dict__:
         logger.info(k + ": " + str(args.__dict__[k]))
@@ -279,13 +268,7 @@ with Engine(custom_parser=parser) as engine:
         raise NotImplementedError
 
     total_iteration = config.nepochs * config.niters_per_epoch
-    
-    lr_policy = WarmUpPolyLR(
-        base_lr,
-        config.lr_power,
-        total_iteration,
-        config.niters_per_epoch * config.warm_up_epoch,
-    )
+
     if engine.distributed:
         logger.info(".............distributed training.............")
         if torch.cuda.is_available():
