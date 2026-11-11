@@ -49,12 +49,12 @@ parser.add_argument(
 )
 parser.add_argument("--use_seed", default=False, action=argparse.BooleanOptionalAction)
 parser.add_argument("--seed", default=0, type=int)
+parser.add_argument("--out_file", default="uit.csv", type=str)
 parser.add_argument("--local-rank", default=0)
 parser.add_argument("--mask", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument(
     "--augmentaties", default=True, action=argparse.BooleanOptionalAction
 )
-parser.add_argument("--ds_size", default=1, type=int)
 # parser.add_argument('--save_path', '-p', default=None)
 
 # os.environ['MASTER_PORT'] = '169710'
@@ -76,11 +76,15 @@ veldnamen = [
     "ds_size",
     "macc",
     "miou",
+    "batch_size",
+    "lr"
 ]
 
-bestaat = os.path.exists(uit_csv)
+args = parser.parse_args()
 
-with open(uit_csv, "a+", newline="") as f:
+bestaat = os.path.exists(args.out_file)
+
+with open(args.out_file, "a+", newline="") as f:
     writer = csv.DictWriter(f=f, fieldnames=veldnamen)
     if not bestaat:
         writer.writeheader()
@@ -141,8 +145,6 @@ def set_seed(seed):
 
 
 with Engine(custom_parser=parser) as engine:
-    args = parser.parse_args()
-
     config = getattr(import_module(args.config), "C")
     logger = get_logger(config.log_dir, config.log_file, rank=engine.local_rank)
     # check if pad_SUNRGBD is used correctly
@@ -162,9 +164,7 @@ with Engine(custom_parser=parser) as engine:
     # hier de config updaten (mask, augmentaties, ds_size)
     config.mask = args.mask
     config.augmentaties = args.augmentaties
-    config.num_train_imgs = args.ds_size
     config.seed = args.seed
-    config.niters_per_epoch = config.num_train_imgs
 
     if args.use_seed:
         set_seed(config.seed)
@@ -253,6 +253,7 @@ with Engine(custom_parser=parser) as engine:
     # model.load_state_dict(weight)
 
     base_lr = config.lr
+
     if engine.distributed:
         base_lr = config.lr
 
@@ -278,6 +279,7 @@ with Engine(custom_parser=parser) as engine:
         raise NotImplementedError
 
     total_iteration = config.nepochs * config.niters_per_epoch
+    
     lr_policy = WarmUpPolyLR(
         base_lr,
         config.lr_power,
@@ -564,8 +566,7 @@ with Engine(custom_parser=parser) as engine:
                     # print('miou',miou)
                 # print('acc, macc, f1, mf1, ious, miou',acc, macc, f1, mf1, ious, miou)
                 # print('miou',miou)
-                print(config)
-                input()
+
                 res = {
                     "dataset": config.dataset_name,
                     "run_id": run_id,
@@ -575,27 +576,13 @@ with Engine(custom_parser=parser) as engine:
                     "ds_size": config.num_train_imgs,
                     "macc": macc,
                     "miou": miou,
+                    "batch_size": config.batch_size,
+                    "lr": config.lr
                 }
 
-                with open(uit_csv, "a") as f:
+                with open(args.out_file, "a") as f:
                     writer = csv.DictWriter(f, fieldnames=veldnamen)
                     writer.writerow(res)
-
-                if miou > best_miou:
-                    best_miou = miou
-                    engine.save_and_link_checkpoint(
-                        config.log_dir,
-                        config.log_dir,
-                        config.log_dir_link,
-                        infor="_miou_" + str(miou),
-                        metric=miou,
-                    )
-                    stoploss = 0
-                else:
-                    stoploss += 1
-
-                    if stoploss == 8:
-                        break
 
                 print("miou", miou, "best", best_miou)
             logger.info(
@@ -611,15 +598,14 @@ with Engine(custom_parser=parser) as engine:
                         [
                             p.detach().flatten().cpu()
                             for n, p in model.named_parameters()
-                            if "Geo.weight" in n
+                            if "Geo.weight_depth" in n
                         ]
                     )
-                w_pos, w_depth = geo.mean(dim=0).tolist()
+                print(geo)
+                w_depth = geo.mean()
                 logger.info(
-                    f"Epoch {epoch} Geo weights: mean w_pos={w_pos:.4f}, mean w_depth={w_depth:.4f}"
+                    f"Epoch {epoch} Geo weights: mean w_depth={w_depth:.4f}"
                 )
-                tb.add_scalar("geo/w_pos", w_pos, epoch)
-                tb.add_scalar("geo/w_depth", w_depth, epoch)
 
         eval_count = 0
         for i in range(engine.state.epoch + 1, config.nepochs + 1):

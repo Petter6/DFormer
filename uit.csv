@@ -1,5 +1,0 @@
-dataset,run_id,epoch,mask,augmentaties,ds_size,macc,miou
-DeStijl,d252e4bc,1,True,True,1,49.53,26.65
-DeStijl,d252e4bc,25,True,True,1,32.34,30.64
-DeStijl_occ,5464b194,1,True,True,1,50.34,21.12
-DeStijl_occ,5464b194,25,True,True,1,30.64,26.58

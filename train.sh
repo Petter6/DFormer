@@ -1,42 +1,33 @@
 GPUS=1
-NNODES=1
-NODE_RANK=${NODE_RANK:-0}
-PORT=${PORT:-29158}
-MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 CONFIG=${1:-local_configs.NYUDepthv2.DFormerPP_B}
-export DATASET="DeStijl_occ"
+export DATASET="FashionOcc_100"
+export DS_SIZE=100
 
-export CUDA_VISIBLE_DEVICES="0"
-export TORCHDYNAMO_VERBOSE=1
+SEED=1
+# implementeren lr (3e-5, 1e-4, 3e-4), batch_size (10, 20, 50), augmentatie/geen_augmentatie
 
-for augmentatie in --augmentatie; do
-    for seed in $(seq 0 4); do
-        for ds_size in 1 50 10 5 1; do
-            for mask in --mask --no-mask; do
-            echo ">>> mask=$mask seed=$seed ds_size=$ds_size"
-            PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
-            torchrun \
-                --nnodes=$NNODES \
-                --node_rank=$NODE_RANK \
-                --master_addr=$MASTER_ADDR \
-                --nproc_per_node=$GPUS \
-                --master_port=$PORT \
-                utils/train.py \
-                --config=$CONFIG --gpus=$GPUS \
-                --no-sliding \
-                --no-compile \
-                --syncbn \
-                --no-mst \
-                --compile_mode="default" \
-                --no-amp \
-                --val_amp \
-                --ds_size=$ds_size \
-                $mask \
-                $augmentatie \
-                --use_seed \
-                --seed=$seed
-            done
-        done
+for augmentatie in --augmentatie --no-augmentatie ; do
+    
+    for mask in --no-mask --no-mask; do
+        echo ">>> mask=$mask seed=$seed ds_size=$ds_size"
+        PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
+        torchrun \
+            --nproc_per_node=$GPUS \
+            utils/train.py \
+            --config=$CONFIG --gpus=$GPUS \
+            --no-sliding \
+            --no-compile \
+            --syncbn \
+            --no-mst \
+            --compile_mode="default" \
+            --no-amp \
+            --val_amp \
+            --lr 3e-5 \
+            --batch_size 25 \
+            $mask \
+            $augmentatie \
+            --use_seed \
+            --seed=$SEED
     done
 done
 

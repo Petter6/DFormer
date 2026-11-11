@@ -5,6 +5,15 @@ from .. import *
 C.dataset_name = os.environ.get(
     "DATASET", "DeStijl"
 )  # default als de variabele niet gezet is
+C.num_train_imgs = int(os.environ.get(
+    "DS_SIZE", 100
+)) 
+C.batch_size = int(os.environ.get(
+    "BS", 20
+))  # default als de variabele niet gezet is
+C.lr = float(os.environ.get(
+    "LR", 1e-4
+))  
 C.dataset_path = osp.join(C.root_dir, C.dataset_name)
 C.rgb_root_folder = osp.join(C.dataset_path, "RGB")
 C.rgb_format = ".png"
@@ -21,10 +30,9 @@ C.x_is_single_channel = (
 C.train_source = osp.join(C.dataset_path, "train.txt")
 C.eval_source = osp.join(C.dataset_path, "test.txt")
 C.is_test = True
-C.num_train_imgs = 100
-C.num_eval_imgs = 20
-C.num_classes = 3
-C.class_names = ["bg", "down" "up"]
+C.num_eval_imgs = 300
+C.num_classes = 11
+C.class_names = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "bg"]
 
 """Image Config"""
 C.background = 255

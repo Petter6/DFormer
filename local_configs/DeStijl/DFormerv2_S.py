@@ -9,11 +9,9 @@ C.decoder_embed_dim = 512
 C.optimizer = "AdamW"
 
 """Train Config"""
-C.lr = 2e-5
 C.lr_power = 0.9
 C.momentum = 0.9
 C.weight_decay = 0.01
-C.batch_size = 1
 C.nepochs = 2000
 C.niters_per_epoch = C.num_train_imgs // C.batch_size + 1
 C.num_workers = 0

@@ -118,7 +118,12 @@ class GeoPriorGen(nn.Module):
         angle = 1.0 / (10000 ** torch.linspace(0, 1, embed_dim // num_heads // 2))
         angle = angle.unsqueeze(-1).repeat(1, 2).flatten()
         # Hier de grad aanpassen voor prior / vs niet.
-        self.weight = nn.Parameter(torch.zeros(2, 1, 1, 1), requires_grad=cfg.mask)
+        if cfg.mask:
+            self.weight_loc = nn.Parameter(torch.Tensor([0.0]).view(1, 1, 1, 1), requires_grad=False)
+            self.weight_depth = nn.Parameter(torch.Tensor([1.0]).view(1, 1, 1, 1), requires_grad=True)
+        else:
+            self.weight_loc = nn.Parameter(torch.Tensor([0.0]).view(1, 1, 1, 1), requires_grad=False)
+            self.weight_depth = nn.Parameter(torch.Tensor([0.0]).view(1, 1, 1, 1), requires_grad=False)
         decay = torch.log(
             1
             - 2
@@ -202,12 +207,12 @@ class GeoPriorGen(nn.Module):
             mask_w = self.generate_1d_decay(HW_tuple[1])
 
             mask_h = (
-                10 * self.weight[0] * mask_h.unsqueeze(0).unsqueeze(2)
-                + 10 * self.weight[1] * mask_d_h
+                self.weight_loc * mask_h.unsqueeze(0).unsqueeze(2)
+                + self.weight_depth * mask_d_h
             )
             mask_w = (
-                10 * self.weight[0] * mask_w.unsqueeze(0).unsqueeze(2)
-                + 10 * self.weight[1] * mask_d_w
+                self.weight_loc * mask_w.unsqueeze(0).unsqueeze(2)
+                + self.weight_depth * mask_d_w
             )
 
             geo_prior = ((sin, cos), (mask_h, mask_w))
@@ -221,7 +226,7 @@ class GeoPriorGen(nn.Module):
             mask = self.generate_pos_decay(HW_tuple[0], HW_tuple[1])
 
             mask_d = self.generate_depth_decay(HW_tuple[0], HW_tuple[1], depth_map)
-            mask = self.weight[0] * mask + self.weight[1] * mask_d
+            mask = self.weight_loc * mask + self.weight_depth * mask_d
 
             geo_prior = ((sin, cos), mask)
 

@@ -177,3 +177,13 @@ infer*.sh
 
 # temp ignore:
 **/*_temp*
+
+*.sif
+
+.vscode/
+container.def
+environment.yml
+fashion_raw/
+graphy.py
+mnist_raw/
+results/

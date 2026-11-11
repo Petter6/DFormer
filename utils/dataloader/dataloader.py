@@ -46,6 +46,7 @@ class TrainPre(object):
         if not self.config.augmentaties:
             rgb = normalize(rgb, self.norm_mean, self.norm_std)
             modal_x = normalize(modal_x, self.norm_mean, self.norm_std)
+        
             return rgb.transpose(2, 0, 1), gt, modal_x.transpose(2, 0, 1)
         else:
             rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
@@ -176,12 +177,6 @@ def get_train_loader(engine, dataset, config):
         train_preprocess,
         config.batch_size * config.niters_per_epoch,
     )
-
-    # utils/dataloader/dataloader.py, in plaats van de Subset-regel
-    idx = torch.randperm(len(train_dataset._file_names))[
-        : config.num_train_imgs
-    ].tolist()
-    train_dataset._file_names = [train_dataset._file_names[i] for i in idx]
 
     train_sampler = None
     is_shuffle = True
