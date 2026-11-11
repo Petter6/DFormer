@@ -4,36 +4,25 @@
 #SBATCH --qos=short
 #SBATCH --time=4:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mem=16G
-#SBATCH --array=0-18
+#SBATCH --array=0-11
 #SBATCH --output=slurm-%A_%a.out
 #SBATCH --error=slurm-%A_%a.err
 
 set -uo pipefail
 
-export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:256"
-
-module use /opt/insy/modulefiles
-module load cuda/12.4
-module load devtoolset/11
-
-
 # Full model list (order doesn’t matter)
 SETTINGS=(
   "FashionOcc_100 --mask 20 1e-4 --augmentatie"
   "FashionOcc_200 --mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --mask 20 1e-4 --augmentatie"
   "MNISTSeg_100 --mask 20 1e-4 --augmentatie"
   "MNISTSeg_200 --mask 20 1e-4 --augmentatie"
-  "MNISTSeg_500 --mask 20 1e-4 --augmentatie"
   "FashionOcc_100 --no-mask 20 1e-4 --augmentatie"
   "FashionOcc_200 --no-mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --no-mask 20 1e-4 --augmentatie"
   "MNISTSeg_100 --no-mask 20 1e-4 --augmentatie"
   "MNISTSeg_200 --no-mask 20 1e-4 --augmentatie" 
-  "MNISTSeg_500 --no-mask 20 1e-4 --augmentatie" 
   "FashionOcc_100 --mask 10 1e-4 --augmentatie"
   "FashionOcc_100 --mask 50 1e-4 --augmentatie"
   "FashionOcc_100 --mask 20 3e-4 --augmentatie"
@@ -58,8 +47,12 @@ SEED=1
 OUT="results/${SLURM_ARRAY_JOB_ID}/${DATASET}_${MASK#--}_bs${BS}_lr${LR}_${AUG#--}.csv"
 mkdir -p "$(dirname "$OUT")"
 
-PYTHONPATH="$SLURM_SUBMIT_DIR":${PYTHONPATH:-} \
-torchrun \
+export PYTHONPATH="$SLURM_SUBMIT_DIR":${PYTHONPATH:-}
+
+apptainer exec --nv \
+  ./container.sif \
+  torchrun \
+    --standalone \
     --nproc_per_node=$GPUS \
     utils/train.py \
     --config=$CONFIG --gpus=$GPUS \
