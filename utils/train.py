@@ -9,6 +9,7 @@ from importlib import import_module
 import numpy as np
 import torch
 import torch.nn as nn
+from tensorboardX import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel
 from val_mm import evaluate, evaluate_msf
 
@@ -269,6 +270,12 @@ with Engine(custom_parser=parser) as engine:
 
     total_iteration = config.nepochs * config.niters_per_epoch
 
+    lr_policy = WarmUpPolyLR(
+        base_lr,
+        config.lr_power,
+        total_iteration,
+        config.niters_per_epoch * config.warm_up_epoch,
+    )
     if engine.distributed:
         logger.info(".............distributed training.............")
         if torch.cuda.is_available():
