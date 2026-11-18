@@ -32,7 +32,7 @@ parser.add_argument("--config", help="train config file path")
 parser.add_argument("--gpus", default=2, type=int, help="used gpu number")
 # parser.add_argument('-d', '--devices', default='0,1', type=str)
 parser.add_argument("-v", "--verbose", default=False, action="store_true")
-parser.add_argument("--epochs", default=0)
+parser.add_argument("--epochs", default=0, type=int)
 parser.add_argument("--show_image", "-s", default=False, action="store_true")
 parser.add_argument("--save_path", default=None)
 parser.add_argument("--checkpoint_dir")
@@ -66,8 +66,7 @@ torch._dynamo.config.suppress_errors = True
 
 run_id = uuid.uuid4().hex[:8]
 
-uit_csv = "uit.csv"
-veldnamen = [
+fieldnames_res = [
     "dataset",
     "run_id",
     "epoch",
@@ -75,23 +74,44 @@ veldnamen = [
     "augmentaties",
     "ds_size",
     "macc",
+    "behind_moacc",
+    "infront_moacc",
+    "border_moacc",
     "miou",
     "batch_size",
     "lr"
 ]
 
+fieldnames_parameters = [
+    "run_id",
+    "epoch",
+    "layer",
+    "block",
+    "geo_d",
+    "tv"
+]
+
 args = parser.parse_args()
 
-bestaat = os.path.exists(args.out_file)
+res_path = args.out_file
 
-with open(args.out_file, "a+", newline="") as f:
-    writer = csv.DictWriter(f=f, fieldnames=veldnamen)
-    if not bestaat:
+parameter_path = f"{os.path.splitext(res_path)[0]}_parameters.csv"
+res_path_exists = os.path.exists(res_path)
+parameter_path_exists = os.path.exists(parameter_path)
+
+with open(res_path, "a+", newline="") as f:
+    writer = csv.DictWriter(f=f, fieldnames=fieldnames_res)
+    if not res_path_exists:
+        writer.writeheader()
+
+with open(parameter_path, "a+", newline="") as f:
+    writer = csv.DictWriter(f=f, fieldnames=fieldnames_parameters)
+    if not parameter_path_exists:
         writer.writeheader()
 
 
 def is_eval(epoch, config):
-    return epoch > int(config.checkpoint_start_epoch) or epoch == 1 or epoch % 25 == 0
+    return epoch == 1 or epoch % 25 == 0
 
 
 class gpu_timer:
@@ -165,6 +185,8 @@ with Engine(custom_parser=parser) as engine:
     config.mask = args.mask
     config.augmentaties = args.augmentaties
     config.seed = args.seed
+    if args.epochs != 0:
+        config.nepochs = args.epochs
 
     if args.use_seed:
         set_seed(config.seed)
@@ -553,6 +575,9 @@ with Engine(custom_parser=parser) as engine:
                     ious, miou = metric.compute_iou()
                     acc, macc = metric.compute_pixel_acc()
                     f1, mf1 = metric.compute_f1()
+                    behind_moacc = metric.behind.compute_overall_acc()
+                    infront_moacc = metric.infront.compute_overall_acc()
+                    border_moacc = metric.border.compute_overall_acc()
                     # print('miou',miou)
                 # print('acc, macc, f1, mf1, ious, miou',acc, macc, f1, mf1, ious, miou)
                 # print('miou',miou)
@@ -566,12 +591,15 @@ with Engine(custom_parser=parser) as engine:
                     "ds_size": config.num_train_imgs,
                     "macc": macc,
                     "miou": miou,
+                    "behind_moacc": behind_moacc,
+                    "infront_moacc": infront_moacc,
+                    "border_moacc": border_moacc,
                     "batch_size": config.batch_size,
                     "lr": config.lr
                 }
 
                 with open(args.out_file, "a") as f:
-                    writer = csv.DictWriter(f, fieldnames=veldnamen)
+                    writer = csv.DictWriter(f, fieldnames=fieldnames_res)
                     writer.writerow(res)
 
                 print("miou", miou, "best", best_miou)
@@ -583,19 +611,22 @@ with Engine(custom_parser=parser) as engine:
             if (
                 engine.distributed and engine.local_rank == 0
             ) or not engine.distributed:
+                # we slaan de depth weigth & de gemiddelde att. verpltsng io 
+                res = []
                 with torch.no_grad():
-                    geo = torch.stack(
-                        [
-                            p.detach().flatten().cpu()
-                            for n, p in model.named_parameters()
-                            if "Geo.weight_depth" in n
-                        ]
-                    )
-                print(geo)
-                w_depth = geo.mean()
-                logger.info(
-                    f"Epoch {epoch} Geo weights: mean w_depth={w_depth:.4f}"
-                )
+                    for i, layer in enumerate(model.backbone.layers):
+                        for j, block in enumerate(layer.blocks):
+                            res.append( {"run_id" : run_id,
+                                        "epoch": epoch,
+                                        "layer": i,
+                                        "block": j,
+                                        "geo_d": block.Geo.weight_depth.item(),
+                                        "tv": block.Attention.tv})
+                                                   
+                with open(parameter_path, "a") as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames_parameters)
+                    for line in res:
+                        writer.writerow(line)
 
         eval_count = 0
         for i in range(engine.state.epoch + 1, config.nepochs + 1):

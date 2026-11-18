@@ -1,35 +1,21 @@
 #!/bin/bash
-#SBATCH --job-name=flow-validate
+#SBATCH --job-name=epoch4000
 #SBATCH --partition=prb,insy,general
 #SBATCH --qos=medium
-#SBATCH --time=12:00:00
+#SBATCH --time=36:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mem=16G
-#SBATCH --array=0-9
 #SBATCH --output=slurm-%A_%a.out
 #SBATCH --error=slurm-%A_%a.err
 
 set -uo pipefail
 
 # Full model list (order doesn’t matter)
-SETTINGS=(
-  "FashionOcc_500 --mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --no-mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --no-mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --no-mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --no-mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --mask 20 1e-4 --augmentatie"
-  "FashionOcc_500 --no-mask 20 1e-4 --augmentatie"
-)
-
-TASK_ID=${SLURM_ARRAY_TASK_ID}   
-# lees de string in, sla op in variabelen 
-read -r DATASET MASK BS LR AUG <<< "${SETTINGS[$TASK_ID]}"
+SETTINGS=("FashionOcc_500 --mask 20 1e-4 --augmentatie")
+read -r DATASET MASK BS LR AUG <<< "${SETTINGS[0]}"
+SEED=0
 
 echo "${DATASET} ${MASK} ${BS} ${LR} ${AUG}"
 
@@ -40,9 +26,8 @@ export LR
 
 CONFIG="local_configs.DeStijl.DFormerv2_S"
 GPUS=1
-SEED=$((2 + TASK_ID / 2))
 
-OUT="results/${SLURM_ARRAY_JOB_ID}/${DATASET}_${MASK#--}_bs${BS}_lr${LR}_${AUG#--}_seed${SEED}.csv"
+OUT="results/${SLURM_JOB_ID}/${DATASET}_${MASK#--}_bs${BS}_lr${LR}_${AUG#--}_seed${SEED}.csv"
 mkdir -p "$(dirname "$OUT")"
 
 export PYTHONPATH="$SLURM_SUBMIT_DIR":${PYTHONPATH:-}
@@ -65,4 +50,5 @@ apptainer exec --nv \
     $AUG \
     --use_seed \
     --seed=$SEED \
-    --out_file=$OUT
+    --out_file=$OUT \
+    --epochs 4000

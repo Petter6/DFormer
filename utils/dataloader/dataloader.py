@@ -46,7 +46,6 @@ class TrainPre(object):
         if not self.config.augmentaties:
             rgb = normalize(rgb, self.norm_mean, self.norm_std)
             modal_x = normalize(modal_x, self.norm_mean, self.norm_std)
-        
             return rgb.transpose(2, 0, 1), gt, modal_x.transpose(2, 0, 1)
         else:
             rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
@@ -77,6 +76,27 @@ class TrainPre(object):
             # p_rgb = p_rgb
             # p_modal_x = p_modal_x
 
+            # import matplotlib.pyplot as plt
+
+            # vis_rgb = p_rgb.transpose(1, 2, 0) * self.norm_std + self.norm_mean
+
+            # fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+
+            # axes[0].imshow(np.clip(vis_rgb[..., ::-1], 0, 1))
+            # axes[0].set_title("RGB")
+
+            # axes[1].imshow(p_modal_x[0], cmap="viridis")
+            # axes[1].set_title("depth (genormaliseerd)")
+
+            # axes[2].imshow(p_gt, cmap="tab20", vmin=0, vmax=20, interpolation="nearest")
+            # axes[2].set_title("label")
+
+            # for ax in axes:
+            #     ax.axis("off")
+
+            # plt.savefig("trainpre_check.png", dpi=150, bbox_inches="tight")
+            # plt.close(fig)
+
             return p_rgb, p_gt, p_modal_x
 
 
@@ -97,7 +117,7 @@ class ValPre(object):
         self.norm_std = norm_std
         self.sign = sign
 
-    def __call__(self, rgb, gt, modal_x):
+    def __call__(self, rgb, gt, region, rand, modal_x):
         # pad to 730*531
         if self.config.pad:
             rgb = cv2.copyMakeBorder(
@@ -146,7 +166,7 @@ class ValPre(object):
 
         rgb = normalize(rgb, self.norm_mean, self.norm_std)
         modal_x = normalize(modal_x, [0.48, 0.48, 0.48], [0.28, 0.28, 0.28])
-        return rgb.transpose(2, 0, 1), gt, modal_x.transpose(2, 0, 1)
+        return rgb.transpose(2, 0, 1), gt, region, rand, modal_x.transpose(2, 0, 1)
         # return rgb, gt, modal_x
 
 
@@ -156,6 +176,10 @@ def get_train_loader(engine, dataset, config):
         "rgb_format": config.rgb_format,
         "gt_root": config.gt_root_folder,
         "gt_format": config.gt_format,
+        "region_root": config.region_root_folder,
+        "region_format": config.region_format,
+        "rand_root": config.rand_root_folder,
+        "rand_format": config.rand_format,
         "transform_gt": config.gt_transform,
         "x_root": config.x_root_folder,
         "x_format": config.x_format,
@@ -208,6 +232,10 @@ def get_val_loader(engine, dataset, config, val_batch_size=1):
         "rgb_format": config.rgb_format,
         "gt_root": config.gt_root_folder,
         "gt_format": config.gt_format,
+        "region_root": config.region_root_folder,
+        "region_format": config.region_format,
+        "rand_root": config.rand_root_folder,
+        "rand_format": config.rand_format,
         "transform_gt": config.gt_transform,
         "x_root": config.x_root_folder,
         "x_format": config.x_format,

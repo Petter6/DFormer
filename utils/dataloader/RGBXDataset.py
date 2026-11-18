@@ -14,9 +14,14 @@ def get_path(
     _x_format,
     _gt_path,
     _gt_format,
+    _region_path,
+    _region_format,
+    _rand_path,
+    _rand_format,
     x_modal,
     item_name,
 ):
+    region_path, rand_path = None, None
     if dataset_name == "StanFord2D3D":
         rgb_path = os.path.join(
             _rgb_path,
@@ -122,7 +127,15 @@ def get_path(
             _gt_path,
             item_name.replace(".jpg", "").replace(".png", "") + _gt_format,
         )
-    path_result = {"rgb_path": rgb_path, "gt_path": gt_path}
+        region_path = os.path.join(
+            _region_path,
+            item_name.replace(".jpg", "").replace(".png", "") + _region_format,
+        )
+        rand_path = os.path.join(
+            _rand_path,
+            item_name.replace(".jpg", "").replace(".png", "") + _rand_format,
+        )
+    path_result = {"rgb_path": rgb_path, "gt_path": gt_path, "region_path": region_path, "rand_path": rand_path}
     for modal in x_modal:
         path_result[modal + "_path"] = eval(modal + "_path")
     return path_result
@@ -136,6 +149,11 @@ class RGBXDataset(data.Dataset):
         self._rgb_format = setting["rgb_format"]
         self._gt_path = setting["gt_root"]
         self._gt_format = setting["gt_format"]
+        # nieuwe masks
+        self._region_path = setting["region_root"]
+        self._region_format = setting["region_format"]
+        self._rand_path = setting["rand_root"]
+        self._rand_format = setting["rand_format"]
         self._transform_gt = setting["transform_gt"]
         self._x_path = setting["x_root"]
         self._x_format = setting["x_format"]
@@ -169,6 +187,10 @@ class RGBXDataset(data.Dataset):
             self._x_format,
             self._gt_path,
             self._gt_format,
+            self._region_path,
+            self._region_format,
+            self._rand_path,
+            self._rand_format,
             self.x_modal,
             item_name,
         )
@@ -183,6 +205,18 @@ class RGBXDataset(data.Dataset):
         gt = self._open_image(
             path_dict["gt_path"], cv2.IMREAD_GRAYSCALE, dtype=np.uint8
         )
+
+        if self._split_name == 'val':
+            region = self._open_image(
+                path_dict["region_path"], cv2.IMREAD_GRAYSCALE, dtype=np.uint8
+            )
+            rand = self._open_image(
+                path_dict["rand_path"], cv2.IMREAD_GRAYSCALE, dtype=np.uint8
+            )
+        
+
+        # hier kijken of dit überhauot getriggerd wordt
+        # ik denk het wel
         if self._transform_gt:
             gt = self._gt_transform(gt)
 
@@ -213,11 +247,19 @@ class RGBXDataset(data.Dataset):
         # else:
         #     x = self._open_image(x_path, cv2.COLOR_BGR2RGB)
 
-        if self.preprocess is not None:
-            rgb, gt, x = self.preprocess(rgb, gt, x)
+        if self._split_name == 'val':
+            if self.preprocess is not None:
+                rgb, gt, region, rand, x = self.preprocess(rgb, gt, region, rand, x)
+        else:
+            if self.preprocess is not None:
+                rgb, gt, x = self.preprocess(rgb, gt, x)
 
         rgb = torch.from_numpy(np.ascontiguousarray(rgb)).float()
         gt = torch.from_numpy(np.ascontiguousarray(gt)).long()
+
+        if self._split_name == 'val':
+            region = torch.from_numpy(np.ascontiguousarray(region)).long()
+            rand = torch.from_numpy(np.ascontiguousarray(rand)).long()
         # for modal in x:
         x = torch.from_numpy(np.ascontiguousarray(x)).float()
 
@@ -230,14 +272,25 @@ class RGBXDataset(data.Dataset):
         #     gt = torch.from_numpy(np.ascontiguousarray(gt)).long()
         #     x = torch.from_numpy(np.ascontiguousarray(x)).float()
 
-        output_dict = dict(
-            data=rgb,
-            label=gt,
-            modal_x=x,
-            fn=str(path_dict["rgb_path"]),
-            n=len(self._file_names),
-        )
-
+        if self._split_name == 'val':
+            output_dict = dict(
+                data=rgb,
+                label=gt,
+                region=region,
+                rand=rand,
+                modal_x=x,
+                fn=str(path_dict["rgb_path"]),
+                n=len(self._file_names)
+            )
+        else:
+            output_dict = dict(
+                data=rgb,
+                label=gt,
+                modal_x=x,
+                fn=str(path_dict["rgb_path"]),
+                n=len(self._file_names)
+            )
+        
         return output_dict
 
     def _get_file_names(self, split_name):

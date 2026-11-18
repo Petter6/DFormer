@@ -32,7 +32,7 @@ C.eval_flip = True  # False #
 C.eval_crop_size = [224, 224]  # [height weight]
 
 """Store Config"""
-C.checkpoint_start_epoch = 2000
+C.checkpoint_start_epoch = 10000
 C.checkpoint_step = 25
 C.seed = 69
 

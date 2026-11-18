@@ -1,6 +1,6 @@
 """MNIST-segmentatiedataset (11 klassen) met onbalans over combinaties cijfer x achtergrondkleur x cijferkleur.
 
-command => python make_mnist_seg.py --out datasets --mode shortcut [ --max_size ] --sizes 100 200 500
+command => python make_mnist_seg.py --out datasets --mode shortcut --max_size --sizes 100 200 500
 
 Eén cijfer per beeld. Een "combinatie" is (cijfer, achtergrondkleur, cijferkleur):
     10 cijfers x 3 achtergrondkleuren x 2 cijferkleuren (nooit gelijk aan de achtergrond) = 60 combinaties.
@@ -25,7 +25,7 @@ Labels: 0 = achtergrond, 1..10 = cijfer 0..9   ->  num_classes = 11, gt_transfor
 Diepte: achtergrond 254, cijfer 1 [--depth informative]  of overal 254 [--depth constant]
 
 Grootte: standaard willekeurig (--digit_min..--digit_max) op een willekeurige plek; met --max_size wordt
-        het cijfer bijgesneden tot de inkt en zo groot mogelijk gecentreerd (--fill), zodat het in de
+        het cijfer bijgesneden tot de inkt en zo groot mogelijk gecentreerd binnen een vrije band van --marge px, zodat het in de
         grove stages (stage 4 = 7x7 tokens bij 224 px) zoveel mogelijk tokens beslaat.
 
 Gebruik:
@@ -58,9 +58,9 @@ def parse_args():
     p.add_argument("--digit_max", type=int, default=112, help="max. cijfergrootte in pixels")
     p.add_argument("--max_size", action="store_true",
                    help="cijfer zo groot mogelijk: bijgesneden tot de inktrand, geschaald (aspect behouden) "
-                        "tot --fill x canvas en gecentreerd; negeert --digit_min/--digit_max")
-    p.add_argument("--fill", type=float, default=0.95,
-                   help="[--max_size] langste zijde van het cijfer als fractie van het canvas")
+                        "zodat het binnen canvas - 2 x --marge past, en gecentreerd; negeert --digit_min/--digit_max")
+    p.add_argument("--marge", type=int, default=10,
+                   help="[--max_size] vrije band in pixels aan elke kant; het cijfer past daarbinnen")
     p.add_argument("--mode", choices=["tail", "shortcut"], default="tail")
     p.add_argument("--ratio", type=float, default=50.0,
                    help="[tail] frequentie vaakste / zeldzaamste combinatie")
@@ -92,8 +92,10 @@ def render(combi, mnist_imgs, idx_per_class, args, rng):
         # Bijsnijden tot de inkt (MNIST heeft ~4 px lege rand), dan zo groot mogelijk en gecentreerd
         rijen, kolommen = np.flatnonzero(bron.any(axis=1)), np.flatnonzero(bron.any(axis=0))
         bron = bron[rijen[0]:rijen[-1] + 1, kolommen[0]:kolommen[-1] + 1]
-        schaal = args.fill * c / max(bron.shape)
-        sh, sw = max(1, round(bron.shape[0] * schaal)), max(1, round(bron.shape[1] * schaal))
+        ruimte = c - 2 * args.marge  # beschikbare ruimte binnen de band
+        schaal = ruimte / max(bron.shape)
+        sh = min(ruimte, max(1, round(bron.shape[0] * schaal)))
+        sw = min(ruimte, max(1, round(bron.shape[1] * schaal)))
         y, x = (c - sh) // 2, (c - sw) // 2
     else:
         sh = sw = int(rng.integers(args.digit_min, args.digit_max + 1))
@@ -210,6 +212,22 @@ def main():
             w.writerow(["idx", "split", "cijfer", "label", "achtergrond", "cijferkleur",
                         "combi_rang", "combi_trainfreq", "congruent"])
             w.writerows(tr_meta + te_meta)
+        # Hoe vaak elk kleurpaar en elke combinatie voorkomt in train en test
+        test_freq = np.bincount(test_combis, minlength=n_combi)
+        with open(os.path.join(root, "paren.csv"), "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["achtergrond", "cijferkleur", "train", "train_frac", "test", "dominant_voor_cijfers"])
+            for bg, fg in PAREN:
+                idx = [COMBI_IDX[(d, bg, fg)] for d in range(10)]
+                n_tr, n_te = int(train_freq[idx].sum()), int(test_freq[idx].sum())
+                dom = "" if dominant is None else " ".join(str(d) for d in range(10) if dominant[d] == (bg, fg))
+                w.writerow([bg, fg, n_tr, round(n_tr / n, 3), n_te, dom])
+        with open(os.path.join(root, "combis.csv"), "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["cijfer", "achtergrond", "cijferkleur", "train", "test"])
+            w.writerows([d, bg, fg, int(train_freq[ci]), int(test_freq[ci])]
+                        for ci, (d, bg, fg) in enumerate(COMBIS))
+
         if dominant is not None:
             with open(os.path.join(root, "dominant.csv"), "w", newline="") as f:
                 w = csv.writer(f)

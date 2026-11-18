@@ -246,7 +246,7 @@ class Decomposed_GSA(nn.Module):
         self.k_proj = nn.Linear(embed_dim, embed_dim, bias=True)
         self.v_proj = nn.Linear(embed_dim, embed_dim * self.factor, bias=True)
         self.lepe = DWConv2d(embed_dim, 5, 1, 2)
-
+        self.tv = 0.0 
         self.out_proj = nn.Linear(embed_dim * self.factor, embed_dim, bias=True)
         self.reset_parameters()
 
@@ -274,19 +274,39 @@ class Decomposed_GSA(nn.Module):
         kr_w = kr.transpose(1, 2)
         v = v.reshape(bsz, h, w, self.num_heads, -1).permute(0, 1, 3, 2, 4)
 
-        qk_mat_w = qr_w @ kr_w.transpose(-1, -2)
-        qk_mat_w = qk_mat_w + mask_w.transpose(1, 2)
+        scores_w = qr_w @ kr_w.transpose(-1, -2)
+
+        qk_mat_w = scores_w + mask_w.transpose(1, 2)
         qk_mat_w = torch.softmax(qk_mat_w, -1)
+        qk_mat_w_depth = qk_mat_w
         v = torch.matmul(qk_mat_w, v)
+
+        # gemiddelde totale verplaatsing per token berekenen (louter breedte)
+        if not self.training:
+            with torch.no_grad():
+                qk_mat_w_og = torch.softmax(scores_w, -1)
+                abs_verschil = abs(qk_mat_w_og - qk_mat_w_depth) / 2
+                abs_verschil = abs_verschil.sum(dim=-1)
+                tv_w = abs_verschil.mean().item()
 
         qr_h = qr.permute(0, 3, 1, 2, 4)
         kr_h = kr.permute(0, 3, 1, 2, 4)
         v = v.permute(0, 3, 2, 1, 4)
 
-        qk_mat_h = qr_h @ kr_h.transpose(-1, -2)
-        qk_mat_h = qk_mat_h + mask_h.transpose(1, 2)
+        scores_h = qr_h @ kr_h.transpose(-1, -2)
+        qk_mat_h = scores_h + mask_h.transpose(1, 2)
         qk_mat_h = torch.softmax(qk_mat_h, -1)
+        qk_mat_h_depth = qk_mat_h
         output = torch.matmul(qk_mat_h, v)
+
+        # gemiddelde totale verplaatsing per token berekenen (louter lengte)
+        if not self.training:
+            with torch.no_grad():
+                qk_mat_h_og = torch.softmax(scores_h,-1)
+                abs_verschil = abs(qk_mat_h_og - qk_mat_h_depth) / 2
+                abs_verschil = abs_verschil.sum(dim=-1)
+                tv_h = abs_verschil.mean().item()
+                self.tv = tv_h * 0.5 + tv_w * 0.5
 
         output = output.permute(0, 3, 1, 2, 4).flatten(-2, -1)
         output = output + lepe
@@ -315,6 +335,7 @@ class Full_GSA(nn.Module):
         self.v_proj = nn.Linear(embed_dim, embed_dim * self.factor, bias=True)
         self.lepe = DWConv2d(embed_dim, 5, 1, 2)
         self.out_proj = nn.Linear(embed_dim * self.factor, embed_dim, bias=True)
+        self.tv = 0.0
         self.reset_parameters()
 
     def forward(self, x: torch.Tensor, rel_pos, split_or_not=False):
@@ -340,9 +361,26 @@ class Full_GSA(nn.Module):
         kr = kr.flatten(2, 3)
         vr = v.reshape(bsz, h, w, self.num_heads, -1).permute(0, 3, 1, 2, 4)
         vr = vr.flatten(2, 3)
-        qk_mat = qr @ kr.transpose(-1, -2)
-        qk_mat = qk_mat + mask
+        qk_trans = qr @ kr.transpose(-1, -2)
+        qk_mat = qk_trans + mask
         qk_mat = torch.softmax(qk_mat, -1)
+        qk_mat_depth = qk_mat
+
+        with torch.no_grad():
+            qk_mat_og = torch.softmax(qk_trans, -1) 
+            
+            # we nemen het absolute verschil tussen de matrices
+            # abs verschil is van de vorm [batchsize, heads, van-token, naar-token]
+            # /2 om dubbeltellingen te voorkomen 
+            abs_verschil = abs(qk_mat_depth - qk_mat_og) / 2
+
+            # we tellen de attentie-scores bij elkaar op 
+            # abs verschil is van de vorm [batchsize, heads, van-token]
+            abs_verschil = abs_verschil.sum(dim=-1)
+
+            # ik wil de mean over alle rijen 
+            self.tv = abs_verschil.mean().item() 
+
         output = torch.matmul(qk_mat, vr)
         output = output.transpose(1, 2).reshape(bsz, h, w, -1)
         output = output + lepe

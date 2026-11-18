@@ -1,22 +1,13 @@
-#!/bin/bash
-#SBATCH --job-name=flow-validate
-#SBATCH --partition=prb,insy,general
-#SBATCH --qos=short
-#SBATCH --time=4:00:00
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:a40:1
-#SBATCH --mem=16G
-#SBATCH --array=0-4
-#SBATCH --output=slurm-%A_%a.out
-#SBATCH --error=slurm-%A_%a.err
-
 set -uo pipefail
 
 # Full model list (order doesn’t matter)
-SETTINGS=("MNISTSeg_100 --no-mask 20 3e-4 --augmentatie")
-read -r DATASET MASK BS LR AUG <<< "${SETTINGS[0]}"
-SEED=$SLURM_ARRAY_TASK_ID
+SETTINGS=(
+  "FashionOcc_500 --no-mask 10 1e-4 --augmentatie"
+)
+
+TASK_ID=0
+# lees de string in, sla op in variabelen 
+read -r DATASET MASK BS LR AUG <<< "${SETTINGS[$TASK_ID]}"
 
 echo "${DATASET} ${MASK} ${BS} ${LR} ${AUG}"
 
@@ -27,11 +18,13 @@ export LR
 
 CONFIG="local_configs.DeStijl.DFormerv2_S"
 GPUS=1
+SEED=1
 
-OUT="results/${SLURM_ARRAY_JOB_ID}/${DATASET}_${MASK#--}_bs${BS}_lr${LR}_${AUG#--}_seed${SEED}.csv"
+OUT="results/test/${DATASET}_${MASK#--}_bs${BS}_lr${LR}_${AUG#--}.csv"
 mkdir -p "$(dirname "$OUT")"
 
-export PYTHONPATH="$SLURM_SUBMIT_DIR":${PYTHONPATH:-}
+REPO="$(cd "$(dirname "$0")" && pwd)"     # map waar dit script staat = repo-root
+export PYTHONPATH="$REPO":${PYTHONPATH:-}
 
 apptainer exec --nv \
   ./container.sif \
@@ -51,4 +44,4 @@ apptainer exec --nv \
     $AUG \
     --use_seed \
     --seed=$SEED \
-    --out_file=$OUT
+    --out_file=$OUT 

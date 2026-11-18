@@ -187,3 +187,7 @@ fashion_raw/
 graphy.py
 mnist_raw/
 results/
+
+plot_results_dir.py
+plot_vergelijk_bestanden.py
+trainpre_check.png

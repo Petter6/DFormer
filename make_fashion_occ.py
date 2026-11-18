@@ -11,6 +11,10 @@ Kleur:   --kleur same (default): beide stukken dezelfde kleur, zodat de grens tu
          in RGB alleen uit de textuur/vorm blijkt en diepte er echt toe doet.
          --kleur different: elk stuk een eigen kleur (dan is de grens ook in RGB zichtbaar).
          De kleding houdt zijn grijswaardetextuur (kleur x helderheid); nooit gelijk aan de achtergrond.
+Regio's: Region/  per pixel 0 = achtergrond, 1 = achterste stuk (zichtbaar deel), 2 = voorste stuk.
+         Rand/    1 = occlusierand: pixels binnen --rand_px (10) pixels van de grens tussen voorste stuk
+                  en zichtbaar achterste stuk, aan beide kanten; anders 0. De buitenrand tegen de
+                  achtergrond telt niet mee. Onafhankelijk van --depth, dus gelijk voor alle condities.
 
 Klassen FashionMNIST: 0 T-shirt, 1 Trouser, 2 Pullover, 3 Dress, 4 Coat, 5 Sandal, 6 Shirt,
                       7 Sneaker, 8 Bag, 9 Ankle boot
@@ -26,6 +30,7 @@ import os
 
 import numpy as np
 from PIL import Image
+from scipy.ndimage import distance_transform_edt
 
 KLEUREN = {"rood": (255, 0, 0), "groen": (0, 255, 0), "blauw": (0, 0, 255)}
 NAMEN = list(KLEUREN)
@@ -49,6 +54,8 @@ def parse_args():
     p.add_argument("--depth", choices=["informative", "constant"], default="informative")
     p.add_argument("--depth_front", type=int, default=1)
     p.add_argument("--depth_back", type=int, default=128)
+    p.add_argument("--rand_px", type=float, default=10,
+                   help="breedte van de occlusierand in pixels, aan elke kant van de grens")
     p.add_argument("--seed", type=int, default=0)
     return p.parse_args()
 
@@ -121,10 +128,24 @@ def maak_scene(klassen, imgs, idx_per_class, args, rng, max_pogingen=500):
         if args.depth == "informative":
             depth[masker] = diepte
 
+    # Regio's: 0 = achtergrond, 1 = zichtbaar achterste stuk, 2 = voorste stuk
+    zicht_achter = m_achter & ~m_voor
+    region = np.zeros((c, c), np.uint8)
+    region[zicht_achter] = 1
+    region[m_voor] = 2
+
+    # Occlusierand: zichtbaar-achter-pixels dicht bij het voorste stuk, en voorste-stuk-pixels
+    # dicht bij het zichtbare achterste stuk (Euclidische afstand <= rand_px)
+    afst_tot_voor = distance_transform_edt(~m_voor)
+    afst_tot_achter = distance_transform_edt(~zicht_achter)
+    rand = ((zicht_achter & (afst_tot_voor <= args.rand_px)) |
+            (m_voor & (afst_tot_achter <= args.rand_px))).astype(np.uint8)
+
     zichtbaar_achter = (label == klassen[0] + 1).sum() / max(m_achter.sum(), 1)
     info = {"achtergrond": bg, "kleur_achter": kl_achter, "kleur_voor": kl_voor,
-            "overlap": round(float(overlap), 3), "zichtbaar_achter": round(float(zichtbaar_achter), 3)}
-    return rgb.round().astype(np.uint8), label, depth, info
+            "overlap": round(float(overlap), 3), "zichtbaar_achter": round(float(zichtbaar_achter), 3),
+            "rand_pixels": int(rand.sum())}
+    return rgb.round().astype(np.uint8), label, depth, region, rand, info
 
 
 def build_split(n, imgs, labels, args, rng):
@@ -140,14 +161,16 @@ def build_split(n, imgs, labels, args, rng):
 
 def save(samples, root, start_idx, split):
     regels, meta = [], []
-    for i, ((achter, voor), (rgb, label, depth, info)) in enumerate(samples, start=start_idx):
+    for i, ((achter, voor), (rgb, label, depth, region, rand, info)) in enumerate(samples, start=start_idx):
         Image.fromarray(rgb).save(os.path.join(root, "RGB", f"{i}.png"))
         Image.fromarray(label).save(os.path.join(root, "Label", f"{i}.png"))
         Image.fromarray(depth).save(os.path.join(root, "Depth", f"{i}.png"))
+        Image.fromarray(region).save(os.path.join(root, "Region", f"{i}.png"))
+        Image.fromarray(rand).save(os.path.join(root, "Rand", f"{i}.png"))
         regels.append(f"RGB/{i}.png\tLabel/{i}.png")
         meta.append([i, split, KLASSEN[achter], achter + 1, KLASSEN[voor], voor + 1,
                      info["achtergrond"], info["kleur_achter"], info["kleur_voor"],
-                     info["overlap"], info["zichtbaar_achter"]])
+                     info["overlap"], info["zichtbaar_achter"], info["rand_pixels"]])
     return regels, meta
 
 
@@ -165,7 +188,7 @@ def main():
 
     for n in sorted(args.sizes):
         root = os.path.join(args.out, f"FashionOcc_{n}")
-        for sub in ("RGB", "Label", "Depth"):
+        for sub in ("RGB", "Label", "Depth", "Region", "Rand"):
             os.makedirs(os.path.join(root, sub), exist_ok=True)
 
         tr_regels, tr_meta = save(train_pool[:n], root, 0, "train")
@@ -176,7 +199,8 @@ def main():
         with open(os.path.join(root, "meta.csv"), "w", newline="") as f:
             w = csv.writer(f)
             w.writerow(["idx", "split", "klasse_achter", "label_achter", "klasse_voor", "label_voor",
-                        "achtergrond", "kleur_achter", "kleur_voor", "overlap", "zichtbaar_achter"])
+                        "achtergrond", "kleur_achter", "kleur_voor", "overlap", "zichtbaar_achter",
+                        "rand_pixels"])
             w.writerows(tr_meta + te_meta)
 
         ov = np.array([m[9] for m in tr_meta])

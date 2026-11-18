@@ -20,6 +20,10 @@ C.rgb_format = ".png"
 C.gt_root_folder = osp.join(C.dataset_path, "Label")
 C.gt_format = ".png"
 C.gt_transform = True
+C.region_root_folder = osp.join(C.dataset_path, "Region")
+C.region_format = ".png"
+C.rand_root_folder = osp.join(C.dataset_path, "Rand")
+C.rand_format = ".png"
 # True when label 0 is invalid, you can also modify the function _transform_gt in dataloader.RGBXDataset
 # True for most dataset valid, Faslse for MFNet(?)
 C.x_root_folder = osp.join(C.dataset_path, "Depth")

@@ -83,6 +83,9 @@ def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=F
     model.eval()
     n_classes = config.num_classes
     metrics = Metrics(n_classes, config.background, device)
+    metrics_behind = Metrics(n_classes, config.background, device) 
+    metrics_infront = Metrics(n_classes, config.background, device) 
+    metrics_border = Metrics(n_classes, config.background, device) 
 
     for idx, minibatch in enumerate(dataloader):
         if ((idx + 1) % int(len(dataloader) * 0.5) == 0 or idx == 0) and (
@@ -91,16 +94,34 @@ def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=F
             print(f"Validation Iter: {idx + 1} / {len(dataloader)}")
         images = minibatch["data"]
         labels = minibatch["label"]
+        region = minibatch["region"]
+        rand = minibatch["rand"]
         modal_xs = minibatch["modal_x"]
+
+        # labels aanpassen naar regios
+        # regio 0 = achtergrond, 1 = achterste stuk (zichtbaar deel), 2 = voorste stuk.
+        # rand 1 = occlusierand:
+        behind_labels = torch.where(region==1, labels, config.background)
+        infront_labels = torch.where(region==2, labels, config.background)
+        border_labels = torch.where(rand==1, labels, config.background)
+       
         if len(images.shape) == 3:
             images = images.unsqueeze(0)
         if len(modal_xs.shape) == 3:
             modal_xs = modal_xs.unsqueeze(0)
         if len(labels.shape) == 2:
             labels = labels.unsqueeze(0)
+            behind_labels = behind_labels.unsqueeze(0)
+            infront_labels = infront_labels.unsqueeze(0)
+            border_labels = border_labels.unsqueeze(0)
+
         # print(images.shape,labels.shape)
         images = [images.to(device), modal_xs.to(device)]
         labels = labels.to(device)
+        behind_labels = behind_labels.to(device)
+        infront_labels = infront_labels.to(device)
+        border_labels = border_labels.to(device)
+
         if sliding:
             preds = slide_inference(model, images, modal_xs, config).softmax(dim=1)
         else:
@@ -108,6 +129,10 @@ def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=F
         # print(preds.shape,labels.shape)
         B, H, W = labels.shape
         metrics.update(preds, labels)
+        metrics_behind.update(preds, behind_labels)
+        metrics_infront.update(preds, infront_labels)
+        metrics_border.update(preds, border_labels)
+
         # for i in range(B):
         #     metrics.update(preds[i].unsqueeze(0), labels[i].unsqueeze(0))
         # metrics.update(preds, labels)
@@ -167,6 +192,10 @@ def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=F
             else:
                 assert 1 == 2
 
+    metrics.behind = metrics_behind
+    metrics.infront = metrics_infront
+    metrics.border = metrics_border
+
     # ious, miou = metrics.compute_iou()
     # acc, macc = metrics.compute_pixel_acc()
     # f1, mf1 = metrics.compute_f1()
@@ -176,6 +205,8 @@ def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=F
         torch.distributed.all_gather_object(all_metrics, metrics)  # list of lists
     else:
         all_metrics = metrics
+       
+
     return all_metrics
 
 

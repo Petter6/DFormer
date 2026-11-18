@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=flow-validate
+#SBATCH --job-name=fashion-app-100200
 #SBATCH --partition=prb,insy,general
 #SBATCH --qos=short
 #SBATCH --time=4:00:00
@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:a40:1
 #SBATCH --mem=16G
-#SBATCH --array=0-11
+#SBATCH --array=0-7
 #SBATCH --output=slurm-%A_%a.out
 #SBATCH --error=slurm-%A_%a.err
 
@@ -15,18 +15,14 @@ set -uo pipefail
 
 # Full model list (order doesn’t matter)
 SETTINGS=(
-  "FashionOcc_100 --mask 20 1e-4 --augmentatie"
-  "FashionOcc_200 --mask 20 1e-4 --augmentatie"
-  "MNISTSeg_100 --mask 20 1e-4 --augmentatie"
-  "MNISTSeg_200 --mask 20 1e-4 --augmentatie"
-  "FashionOcc_100 --no-mask 20 1e-4 --augmentatie"
-  "FashionOcc_200 --no-mask 20 1e-4 --augmentatie"
-  "MNISTSeg_100 --no-mask 20 1e-4 --augmentatie"
-  "MNISTSeg_200 --no-mask 20 1e-4 --augmentatie" 
-  "FashionOcc_100 --mask 10 1e-4 --augmentatie"
-  "FashionOcc_100 --mask 50 1e-4 --augmentatie"
-  "FashionOcc_100 --mask 20 3e-4 --augmentatie"
-  "FashionOcc_100 --mask 20 3e-5 --augmentatie"
+  "FashionApp_100 --no-mask 20 1e-4 --augmentatie"
+  "FashionApp_200 --no-mask 20 1e-4 --augmentatie" 
+  "FashionApp_100 --mask 20 1e-4 --augmentatie"
+  "FashionApp_200 --mask 20 1e-4 --augmentatie"
+  "FashionNoApp_100 --no-mask 20 1e-4 --augmentatie"
+  "FashionNoApp_200 --no-mask 20 1e-4 --augmentatie"
+  "FashionNoApp_100 --mask 20 1e-4 --augmentatie"
+  "FashionNoApp_200 --mask 20 1e-4 --augmentatie"
 )
 
 TASK_ID=${SLURM_ARRAY_TASK_ID}   
@@ -42,9 +38,9 @@ export LR
 
 CONFIG="local_configs.DeStijl.DFormerv2_S"
 GPUS=1
-SEED=1
+SEED=0
 
-OUT="results/${SLURM_ARRAY_JOB_ID}/${DATASET}_${MASK#--}_bs${BS}_lr${LR}_${AUG#--}.csv"
+OUT="results/${SLURM_ARRAY_JOB_ID}/${DATASET}_${MASK#--}_bs${BS}_lr${LR}_${AUG#--}_seed${SEED}.csv"
 mkdir -p "$(dirname "$OUT")"
 
 export PYTHONPATH="$SLURM_SUBMIT_DIR":${PYTHONPATH:-}

@@ -47,3 +47,10 @@ class Metrics:
         acc *= 100
         macc *= 100
         return acc.cpu().numpy().round(2).tolist(), round(macc, 2)
+
+    def compute_overall_acc(self) -> float:
+        # het correcte aantal pixels (op de diagonaal) / het totaal pixels
+        totaal = self.hist.sum()
+        if totaal == 0:
+            return float("nan")
+        return round((self.hist.diag().sum() / totaal).item() * 100, 2)
