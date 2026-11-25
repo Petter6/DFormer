@@ -1,5 +1,7 @@
-export DATASET="FashionOcc_200"
-export DS_SIZE=200
+export DATASET="FashionOcc_500"
+export DS_SIZE=500
 export PYTHONPATH="$SLURM_SUBMIT_DIR":${PYTHONPATH:-}
+export WANDB_DIR=/tudelft.net/staff-homes-linux/r/pjwreijalt/DFormer/wandb
 
-wandb agent --count 1 reijaldinho-tu-delft/FashionMnist-occ/6a9ha69h
+cd "$SLURM_SUBMIT_DIR"
+apptainer exec --nv ./container.sif wandb agent --count 1 reijaldinho-tu-delft/FashionMnist-occ/q9lmx103
