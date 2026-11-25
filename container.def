@@ -1,0 +1,16 @@
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%files
+    environment.yml /opt/environment.yml
+
+%post
+    micromamba create -y -n dformer -f /opt/environment.yml
+    micromamba clean -a -y
+
+%environment
+    export MAMBA_ROOT_PREFIX=/opt/conda
+    export PATH=/opt/conda/envs/dformer/bin:$PATH
+
+%runscript
+    exec "$@"

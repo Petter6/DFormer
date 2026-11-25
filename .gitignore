@@ -181,7 +181,7 @@ infer*.sh
 *.sif
 
 .vscode/
-container.def
+container.sif
 environment.yml
 fashion_raw/
 graphy.py
