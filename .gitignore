@@ -182,7 +182,6 @@ infer*.sh
 
 .vscode/
 container.sif
-environment.yml
 fashion_raw/
 graphy.py
 mnist_raw/
