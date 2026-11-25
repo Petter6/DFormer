@@ -1,0 +1,86 @@
+_wandb:
+    value:
+        cli_version: 0.31.2
+        e:
+            01a21263-f576-74dc-86c9-a1449143aabf:
+                args:
+                    - --config=local_configs.DeStijl.DFormerv2_S
+                    - --gpus=1
+                    - --no-sliding
+                    - --no-compile
+                    - --syncbn
+                    - --no-mst
+                    - --no-amp
+                    - --val_amp
+                    - --mask
+                    - --augmentaties
+                    - --use_seed
+                    - --seed=0
+                codePath: utils/train.py
+                codePathLocal: utils/train.py
+                cpu:
+                    model: AMD Ryzen 9 7950X 16-Core Processor
+                cpu_count: 16
+                cpu_count_logical: 32
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "67108864"
+                        used: "12288"
+                email: p.j.w.reijalt@tudelft.nl
+                executable: /opt/conda/envs/dformer/bin/python
+                gpu: NVIDIA GeForce RTX 4070 Ti SUPER
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ada
+                      cudaCores: 8448
+                      memoryTotal: "17171480576"
+                      name: NVIDIA GeForce RTX 4070 Ti SUPER
+                      pciBusId: "00000000:01:00.0"
+                      uuid: GPU-6114f5a2-1127-eec1-6d46-355384da5f11
+                host: tud1006249
+                memory:
+                    total: "66474082304"
+                os: Linux-7.0.0-38-generic-x86_64-with-glibc2.36
+                program: /home/petter/Documents/phd/diepte/DFormer/utils/train.py
+                python: CPython 3.10.21
+                root: /home/petter/Documents/phd/diepte/DFormer
+                startedAt: "2026-11-25T11:07:50.516135Z"
+                writerId: 01a21263-f576-74dc-86c9-a1449143aabf
+        m:
+            - "1": rm5
+              "6":
+                - 3
+              "7":
+                - 2
+        python_version: 3.10.21
+        t:
+            "1":
+                - 1
+            "2":
+                - 1
+                - 41
+                - 49
+                - 63
+                - 82
+            "3":
+                - 2
+                - 7
+                - 14
+                - 63
+            "4": 3.10.21
+            "5": 0.31.2
+            "8":
+                - 17
+            "12": 0.31.2
+            "13": linux-x86_64
+batch_size:
+    value: 128
+bn_momentum:
+    value: 0.12149084507544346
+drop_path_rate:
+    value: 0.2985467838765283
+lr:
+    value: 2.1303177413177174e-06
+weight_decay:
+    value: 0.0017506059309736583

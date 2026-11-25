@@ -1,0 +1,54 @@
+{
+  "os":  "Linux-7.0.0-38-generic-x86_64-with-glibc2.36",
+  "python":  "CPython 3.10.21",
+  "startedAt":  "2026-11-25T11:03:53.206585Z",
+  "args":  [
+    "--config=local_configs.DeStijl.DFormerv2_S",
+    "--gpus=1",
+    "--no-sliding",
+    "--no-compile",
+    "--syncbn",
+    "--no-mst",
+    "--no-amp",
+    "--val_amp",
+    "--mask",
+    "--augmentaties",
+    "--use_seed",
+    "--seed=0"
+  ],
+  "program":  "/home/petter/Documents/phd/diepte/DFormer/utils/train.py",
+  "codePath":  "utils/train.py",
+  "codePathLocal":  "utils/train.py",
+  "email":  "p.j.w.reijalt@tudelft.nl",
+  "root":  "/home/petter/Documents/phd/diepte/DFormer",
+  "host":  "tud1006249",
+  "executable":  "/opt/conda/envs/dformer/bin/python",
+  "cpu_count":  16,
+  "cpu_count_logical":  32,
+  "gpu":  "NVIDIA GeForce RTX 4070 Ti SUPER",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "67108864",
+      "used":  "12288"
+    }
+  },
+  "memory":  {
+    "total":  "66474082304"
+  },
+  "cpu":  {
+    "model":  "AMD Ryzen 9 7950X 16-Core Processor"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA GeForce RTX 4070 Ti SUPER",
+      "memoryTotal":  "17171480576",
+      "cudaCores":  8448,
+      "architecture":  "Ada",
+      "uuid":  "GPU-6114f5a2-1127-eec1-6d46-355384da5f11",
+      "pciBusId":  "00000000:01:00.0"
+    }
+  ],
+  "cudaVersion":  "13.0",
+  "writerId":  "01a21260-5678-7c65-8a6f-5268704b0996"
+}

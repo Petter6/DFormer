@@ -1,0 +1,12 @@
+wandb_version: 1
+
+batch_size:
+  value: 128
+bn_momentum:
+  value: 0.1810896779750072
+drop_path_rate:
+  value: 0.09637521618669374
+lr:
+  value: 3.679756597554429e-05
+weight_decay:
+  value: 0.04198695175053898

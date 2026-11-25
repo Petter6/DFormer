@@ -95,8 +95,7 @@ class TrainPre(object):
             #     ax.axis("off")
 
             # plt.savefig("trainpre_check.png", dpi=150, bbox_inches="tight")
-            # plt.close(fig)
-
+            # input()
             return p_rgb, p_gt, p_modal_x
 
 
@@ -191,6 +190,7 @@ def get_train_loader(engine, dataset, config):
         "dataset_name": config.dataset_name,
         "backbone": config.backbone,
     }
+
     train_preprocess = TrainPre(
         config.norm_mean, config.norm_std, config.x_is_single_channel, config
     )

@@ -34,28 +34,63 @@ from scipy.ndimage import distance_transform_edt
 
 KLEUREN = {"rood": (255, 0, 0), "groen": (0, 255, 0), "blauw": (0, 0, 255)}
 NAMEN = list(KLEUREN)
-KLASSEN = ["T-shirt", "Trouser", "Pullover", "Dress", "Coat", "Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"]
+KLASSEN = [
+    "T-shirt",
+    "Trouser",
+    "Pullover",
+    "Dress",
+    "Coat",
+    "Sandal",
+    "Shirt",
+    "Sneaker",
+    "Bag",
+    "Ankle boot",
+]
 
 
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--out", default="datasets")
-    p.add_argument("--data_root", default="fashion_raw", help="waar torchvision FashionMNIST downloadt/vindt")
+    p.add_argument(
+        "--data_root",
+        default="fashion_raw",
+        help="waar torchvision FashionMNIST downloadt/vindt",
+    )
     p.add_argument("--sizes", type=int, nargs="+", default=[100, 200, 500])
     p.add_argument("--test_size", type=int, default=300)
     p.add_argument("--canvas", type=int, default=224)
-    p.add_argument("--item_size", type=float, nargs=2, default=[0.55, 0.75],
-                   help="langste zijde van een stuk als fractie van het canvas (min max)")
-    p.add_argument("--overlap", type=float, nargs=2, default=[0.25, 0.6],
-                   help="fractie van het achterste stuk dat door het voorste bedekt wordt (min max)")
-    p.add_argument("--mask_thr", type=float, default=0.05,
-                   help="pixels met helderheid boven deze drempel horen bij het kledingstuk")
+    p.add_argument(
+        "--item_size",
+        type=float,
+        nargs=2,
+        default=[0.55, 0.75],
+        help="langste zijde van een stuk als fractie van het canvas (min max)",
+    )
+    p.add_argument(
+        "--overlap",
+        type=float,
+        nargs=2,
+        default=[0.25, 0.6],
+        help="fractie van het achterste stuk dat door het voorste bedekt wordt (min max)",
+    )
+    p.add_argument(
+        "--mask_thr",
+        type=float,
+        default=0.05,
+        help="pixels met helderheid boven deze drempel horen bij het kledingstuk",
+    )
     p.add_argument("--kleur", choices=["same", "different"], default="same")
-    p.add_argument("--depth", choices=["informative", "constant"], default="informative")
+    p.add_argument(
+        "--depth", choices=["informative", "constant"], default="informative"
+    )
     p.add_argument("--depth_front", type=int, default=1)
     p.add_argument("--depth_back", type=int, default=128)
-    p.add_argument("--rand_px", type=float, default=10,
-                   help="breedte van de occlusierand in pixels, aan elke kant van de grens")
+    p.add_argument(
+        "--rand_px",
+        type=float,
+        default=10,
+        help="breedte van de occlusierand in pixels, aan elke kant van de grens",
+    )
     p.add_argument("--seed", type=int, default=0)
     return p.parse_args()
 
@@ -70,18 +105,21 @@ def load_fashion(root, train):
 def schaal_item(bron, args, rng):
     """Bijsnijden tot de inhoud en schalen (aspect behouden) naar een willekeurige grootte."""
     rijen, kolommen = np.flatnonzero(bron.any(axis=1)), np.flatnonzero(bron.any(axis=0))
-    bron = bron[rijen[0]:rijen[-1] + 1, kolommen[0]:kolommen[-1] + 1]
+    bron = bron[rijen[0] : rijen[-1] + 1, kolommen[0] : kolommen[-1] + 1]
     lang = rng.uniform(*args.item_size) * args.canvas
     schaal = lang / max(bron.shape)
     h, w = max(1, round(bron.shape[0] * schaal)), max(1, round(bron.shape[1] * schaal))
-    return np.asarray(Image.fromarray(bron).resize((w, h), Image.BILINEAR), np.float32) / 255.0
+    return (
+        np.asarray(Image.fromarray(bron).resize((w, h), Image.BILINEAR), np.float32)
+        / 255.0
+    )
 
 
 def plaats(intensiteit, y, x, c):
     """Zet een item-uitsnede op een leeg canvas op positie (y, x)."""
     vol = np.zeros((c, c), np.float32)
     h, w = intensiteit.shape
-    vol[y:y + h, x:x + w] = intensiteit
+    vol[y : y + h, x : x + w] = intensiteit
     return vol
 
 
@@ -89,7 +127,9 @@ def maak_scene(klassen, imgs, idx_per_class, args, rng, max_pogingen=500):
     """Twee stukken (achter, voor) met overlap binnen --overlap. Geeft rgb, label, depth, info."""
     c = args.canvas
     while True:
-        items = [schaal_item(imgs[rng.choice(idx_per_class[k])], args, rng) for k in klassen]
+        items = [
+            schaal_item(imgs[rng.choice(idx_per_class[k])], args, rng) for k in klassen
+        ]
         for _ in range(max_pogingen):
             vlakken = []
             for it in items:
@@ -138,53 +178,97 @@ def maak_scene(klassen, imgs, idx_per_class, args, rng, max_pogingen=500):
     # dicht bij het zichtbare achterste stuk (Euclidische afstand <= rand_px)
     afst_tot_voor = distance_transform_edt(~m_voor)
     afst_tot_achter = distance_transform_edt(~zicht_achter)
-    rand = ((zicht_achter & (afst_tot_voor <= args.rand_px)) |
-            (m_voor & (afst_tot_achter <= args.rand_px))).astype(np.uint8)
+    rand = (
+        (zicht_achter & (afst_tot_voor <= args.rand_px))
+        | (m_voor & (afst_tot_achter <= args.rand_px))
+    ).astype(np.uint8)
+
+    rand = np.where(rand == 1, 250, 0).astype(np.uint8)
 
     zichtbaar_achter = (label == klassen[0] + 1).sum() / max(m_achter.sum(), 1)
-    info = {"achtergrond": bg, "kleur_achter": kl_achter, "kleur_voor": kl_voor,
-            "overlap": round(float(overlap), 3), "zichtbaar_achter": round(float(zichtbaar_achter), 3),
-            "rand_pixels": int(rand.sum())}
+    info = {
+        "achtergrond": bg,
+        "kleur_achter": kl_achter,
+        "kleur_voor": kl_voor,
+        "overlap": round(float(overlap), 3),
+        "zichtbaar_achter": round(float(zichtbaar_achter), 3),
+        "rand_pixels": int(rand.sum()),
+    }
     return rgb.round().astype(np.uint8), label, depth, region, rand, info
 
 
 def build_split(n, imgs, labels, args, rng):
     idx_per_class = [np.flatnonzero(labels == k) for k in range(10)]
     # Elke klasse komt voor als voor- én als achterstuk; daarna uniform, altijd twee verschillende klassen
-    paren = [(k, (k + 1 + rng.integers(9)) % 10) for k in rng.permutation(10)]   # garantie achter
-    paren += [((k + 1 + rng.integers(9)) % 10, k) for k in rng.permutation(10)]  # garantie voor
+    paren = [
+        (k, (k + 1 + rng.integers(9)) % 10) for k in rng.permutation(10)
+    ]  # garantie achter
+    paren += [
+        ((k + 1 + rng.integers(9)) % 10, k) for k in rng.permutation(10)
+    ]  # garantie voor
     while len(paren) < n:
         a, b = rng.choice(10, size=2, replace=False)
         paren.append((int(a), int(b)))
-    return [(paar, maak_scene(paar, imgs, idx_per_class, args, rng)) for paar in paren[:n]]
+    return [
+        (paar, maak_scene(paar, imgs, idx_per_class, args, rng)) for paar in paren[:n]
+    ]
 
 
 def save(samples, root, start_idx, split):
     regels, meta = [], []
-    for i, ((achter, voor), (rgb, label, depth, region, rand, info)) in enumerate(samples, start=start_idx):
+    for i, ((achter, voor), (rgb, label, depth, region, rand, info)) in enumerate(
+        samples, start=start_idx
+    ):
         Image.fromarray(rgb).save(os.path.join(root, "RGB", f"{i}.png"))
         Image.fromarray(label).save(os.path.join(root, "Label", f"{i}.png"))
         Image.fromarray(depth).save(os.path.join(root, "Depth", f"{i}.png"))
         Image.fromarray(region).save(os.path.join(root, "Region", f"{i}.png"))
         Image.fromarray(rand).save(os.path.join(root, "Rand", f"{i}.png"))
         regels.append(f"RGB/{i}.png\tLabel/{i}.png")
-        meta.append([i, split, KLASSEN[achter], achter + 1, KLASSEN[voor], voor + 1,
-                     info["achtergrond"], info["kleur_achter"], info["kleur_voor"],
-                     info["overlap"], info["zichtbaar_achter"], info["rand_pixels"]])
+        meta.append(
+            [
+                i,
+                split,
+                KLASSEN[achter],
+                achter + 1,
+                KLASSEN[voor],
+                voor + 1,
+                info["achtergrond"],
+                info["kleur_achter"],
+                info["kleur_voor"],
+                info["overlap"],
+                info["zichtbaar_achter"],
+                info["rand_pixels"],
+            ]
+        )
     return regels, meta
 
 
 def main():
     args = parse_args()
     if min(args.sizes) < 20:
-        raise ValueError("Elke trainset moet >= 20 beelden hebben (elke klasse 1x voor en 1x achter).")
+        raise ValueError(
+            "Elke trainset moet >= 20 beelden hebben (elke klasse 1x voor en 1x achter)."
+        )
 
     train_imgs, train_labels = load_fashion(args.data_root, train=True)
     test_imgs, test_labels = load_fashion(args.data_root, train=False)
 
     # Genest: kleinere trainsets zijn prefixen van de grootste; testset identiek voor alle groottes
-    train_pool = build_split(max(args.sizes), train_imgs, train_labels, args, np.random.default_rng(args.seed))
-    test_pool = build_split(args.test_size, test_imgs, test_labels, args, np.random.default_rng(args.seed + 1))
+    train_pool = build_split(
+        max(args.sizes),
+        train_imgs,
+        train_labels,
+        args,
+        np.random.default_rng(args.seed),
+    )
+    test_pool = build_split(
+        args.test_size,
+        test_imgs,
+        test_labels,
+        args,
+        np.random.default_rng(args.seed + 1),
+    )
 
     for n in sorted(args.sizes):
         root = os.path.join(args.out, f"FashionOcc_{n}")
@@ -198,13 +282,28 @@ def main():
                 f.write("\n".join(regels) + "\n")
         with open(os.path.join(root, "meta.csv"), "w", newline="") as f:
             w = csv.writer(f)
-            w.writerow(["idx", "split", "klasse_achter", "label_achter", "klasse_voor", "label_voor",
-                        "achtergrond", "kleur_achter", "kleur_voor", "overlap", "zichtbaar_achter",
-                        "rand_pixels"])
+            w.writerow(
+                [
+                    "idx",
+                    "split",
+                    "klasse_achter",
+                    "label_achter",
+                    "klasse_voor",
+                    "label_voor",
+                    "achtergrond",
+                    "kleur_achter",
+                    "kleur_voor",
+                    "overlap",
+                    "zichtbaar_achter",
+                    "rand_pixels",
+                ]
+            )
             w.writerows(tr_meta + te_meta)
 
         ov = np.array([m[9] for m in tr_meta])
-        print(f"FashionOcc_{n}: overlap gemiddeld {ov.mean():.2f} (min {ov.min():.2f}, max {ov.max():.2f})")
+        print(
+            f"FashionOcc_{n}: overlap gemiddeld {ov.mean():.2f} (min {ov.min():.2f}, max {ov.max():.2f})"
+        )
 
 
 if __name__ == "__main__":

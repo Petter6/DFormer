@@ -1,0 +1,60 @@
+_wandb:
+    value:
+        cli_version: 0.31.2
+        e:
+            01a2125e-020e-7670-8873-45bd0fdd1791:
+                args:
+                    - --config=local_configs.DeStijl.DFormerv2_S
+                    - --gpus=1
+                    - --no-sliding
+                    - --no-compile
+                    - --syncbn
+                    - --no-mst
+                    - --no-amp
+                    - --val_amp
+                    - --mask
+                    - --augmentaties
+                    - --use_seed
+                    - --seed=0
+                codePath: utils/train.py
+                codePathLocal: utils/train.py
+                email: p.j.w.reijalt@tudelft.nl
+                executable: /opt/conda/envs/dformer/bin/python
+                host: tud1006249
+                os: Linux-7.0.0-38-generic-x86_64-with-glibc2.36
+                program: /home/petter/Documents/phd/diepte/DFormer/utils/train.py
+                python: CPython 3.10.21
+                root: /home/petter/Documents/phd/diepte/DFormer
+                startedAt: "2026-11-25T11:01:20.524144Z"
+                writerId: 01a2125e-020e-7670-8873-45bd0fdd1791
+        m:
+            - "1": rm5
+              "6":
+                - 3
+              "7":
+                - 2
+        python_version: 3.10.21
+        t:
+            "1":
+                - 1
+            "2":
+                - 1
+            "3":
+                - 2
+                - 7
+                - 14
+                - 63
+            "4": 3.10.21
+            "5": 0.31.2
+            "12": 0.31.2
+            "13": linux-x86_64
+batch_size:
+    value: 16
+bn_momentum:
+    value: 0.11137653736529392
+drop_path_rate:
+    value: 0.10635875331568452
+lr:
+    value: 4.61452786741919e-05
+weight_decay:
+    value: 0.02244646759357778

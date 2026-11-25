@@ -2,7 +2,7 @@ set -uo pipefail
 
 # Full model list (order doesn’t matter)
 SETTINGS=(
-  "FashionOcc_500 --no-mask 10 1e-4 --augmentatie"
+  "FashionApp_100 --mask 20 1e-4 --augmentatie"
 )
 
 TASK_ID=0
@@ -18,7 +18,7 @@ export LR
 
 CONFIG="local_configs.DeStijl.DFormerv2_S"
 GPUS=1
-SEED=1
+SEED=2
 
 OUT="results/test/${DATASET}_${MASK#--}_bs${BS}_lr${LR}_${AUG#--}.csv"
 mkdir -p "$(dirname "$OUT")"
